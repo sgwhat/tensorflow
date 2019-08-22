@@ -1674,6 +1674,7 @@ class MklDnnData {
       : user_memory_(nullptr),
         reorder_memory_(nullptr),
         op_md_(nullptr),
+        bIs3D(false),
         allocated_buffer_(nullptr),
         cpu_engine_(e) {}
 
