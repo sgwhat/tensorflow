@@ -55,6 +55,9 @@ class MklFusedBatchNormOp : public OpKernel {
     OP_REQUIRES(context, FormatFromString(tensor_format, &tensor_format_),
                 errors::InvalidArgument("Invalid data format"));
     OP_REQUIRES_OK(context, context->GetAttr("is_training", &is_training_));
+    depth_ = 0;
+    mean_values_ = nullptr;
+    variance_values_ = nullptr;
   }
 
   void Compute(OpKernelContext* context) override {
