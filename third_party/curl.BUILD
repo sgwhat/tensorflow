@@ -246,7 +246,7 @@ cc_library(
         "lib/doh.h",
         "lib/doh.c",
     ] + select({
-        "@org_tensorflow//tensorflow:macos": [
+        "@org_tensorflow//tensorflow:darwin": [
             "lib/vtls/sectransp.c",
         ],
         "@org_tensorflow//tensorflow:ios": [
@@ -282,7 +282,7 @@ cc_library(
             "-Wno-string-plus-int",
         ],
     }) + select({
-        "@org_tensorflow//tensorflow:macos": [
+        "@org_tensorflow//tensorflow:darwin": [
             "-fno-constant-cfstrings",
         ],
         "@org_tensorflow//tensorflow:windows": [
@@ -299,7 +299,7 @@ cc_library(
         "@org_tensorflow//tensorflow:android": [
             "-pie",
         ],
-        "@org_tensorflow//tensorflow:macos": [
+        "@org_tensorflow//tensorflow:darwin": [
             "-Wl,-framework",
             "-Wl,CoreFoundation",
             "-Wl,-framework",
