@@ -587,6 +587,7 @@ bool FindContractionWithBiasInPort(const RemapperContext& ctx,
   if (add_node_view.NumRegularFanins() < port_id + 1) return false;
   const auto& bias_add_node_view =
       add_node_view.GetRegularFanin(port_id).node_view();
+  if (!bias_add_node_view) return false;
   const auto* bias_add_node_def = bias_add_node_view->node();
 
   if (!FindContractionWithBias(ctx, bias_add_node_view->node_index(), base,
@@ -646,6 +647,7 @@ bool FindContractionWithBiasAndAddActivation(
     const RemapperContext& ctx, int node_index,
     ContractionWithBiasAndAddActivation* matched) {
   const auto* node_view = ctx.graph_view.GetNode(node_index);
+  if (!node_view) return false;
   // TODO(lyandy): Forward controls for patterns with control dependencies.
   if (HasControlFaninOrFanout(*node_view)) return false;
 
