@@ -29,7 +29,6 @@ cc_library(
         "src/lz4frame_static.h",
         "src/lz4hc.c",
         "src/lz4hc.h",
-        "src/lz4opt.h",
         "src/queue.h",
         "src/rd.h",
         "src/rdaddr.c",
