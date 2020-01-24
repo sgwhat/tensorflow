@@ -35,6 +35,17 @@ static Graph* BiasAdd(int d0, int d1, int d2, int d3) {
   return g;
 }
 
+static Graph* BiasAdd_BF16(int d0, int d1, int d2, int d3) {
+  auto* g = new Graph(OpRegistry::Global());
+  Tensor input(DT_BFLOAT16, TensorShape({d0, d1, d2, d3}));
+  Tensor bias(DT_BFLOAT16, TensorShape({d3}));
+  input.flat<bfloat16>().setRandom();
+  bias.flat<bfloat16>().setRandom();
+  test::graph::Binary(g, "BiasAdd", test::graph::Constant(g, input),
+                      test::graph::Constant(g, bias));
+  return g;
+}
+
 static Graph* BiasAddGrad(int d0, int d1, int d2, int d3) {
   auto* g = new Graph(OpRegistry::Global());
   Tensor out_backprop(DT_FLOAT, TensorShape({d0, d1, d2, d3}));
@@ -51,6 +62,15 @@ static Graph* BiasAddGrad(int d0, int d1, int d2, int d3) {
   }                                                                          \
   BENCHMARK(BM_BiasAddNHWC##_##N##_##H##_##W##_##C##_##DEVICE);
 
+#define BM_BiasAddNHWC_BF16(N, W, H, C, DEVICE)                                   \
+  static void BM_BiasAddNHWC_BF16##_##N##_##H##_##W##_##C##_##DEVICE(int iters) { \
+    testing::UseRealTime();                                                       \
+    testing::ItemsProcessed(static_cast<int64>(iters) * N * H * W * C);           \
+    test::Benchmark(#DEVICE, BiasAdd_BF16(N, H, W, C)).Run(iters);                \
+  }                                                                               \
+  BENCHMARK(BM_BiasAddNHWC_BF16##_##N##_##H##_##W##_##C##_##DEVICE);
+
+
 #define BM_BiasAddGradNHWC(N, W, H, C, DEVICE)                          \
   static void BM_BiasAddGradNHWC##_##N##_##H##_##W##_##C##_##DEVICE(    \
       int iters) {                                                      \
@@ -66,10 +86,20 @@ BM_BiasAddNHWC(32, 32, 32, 256, cpu);
 BM_BiasAddNHWC(32, 32, 32, 512, cpu);
 BM_BiasAddNHWC(32, 32, 32, 1024, cpu);
 
+BM_BiasAddNHWC_BF16(32, 32, 32, 128, cpu);
+BM_BiasAddNHWC_BF16(32, 32, 32, 256, cpu);
+BM_BiasAddNHWC_BF16(32, 32, 32, 512, cpu);
+BM_BiasAddNHWC_BF16(32, 32, 32, 1024, cpu);
+
 BM_BiasAddNHWC(32, 64, 64, 128, cpu);
 BM_BiasAddNHWC(32, 64, 64, 256, cpu);
 BM_BiasAddNHWC(32, 64, 64, 512, cpu);
 BM_BiasAddNHWC(32, 64, 64, 1024, cpu);
+
+BM_BiasAddNHWC_BF16(32, 64, 64, 128, cpu);
+BM_BiasAddNHWC_BF16(32, 64, 64, 256, cpu);
+BM_BiasAddNHWC_BF16(32, 64, 64, 512, cpu);
+BM_BiasAddNHWC_BF16(32, 64, 64, 1024, cpu);
 
 BM_BiasAddGradNHWC(32, 32, 32, 128, cpu);
 BM_BiasAddGradNHWC(32, 32, 32, 256, cpu);
