@@ -2204,8 +2204,8 @@ bool HloParserImpl::SetValueInLiteral(LocTy loc, double value, int64 index,
     case F16:
       return SetValueInLiteralHelper<Eigen::half>(loc, value, index, literal);
     case BF16:
-      return SetValueInLiteralHelper<tensorflow::bfloat16>(loc, value, index,
-                                                           literal);
+      return SetValueInLiteralHelper<Eigen::bfloat16>(loc, value, index,
+                                                      literal);
     case F32:
       return SetValueInLiteralHelper<float>(loc, value, index, literal);
     case F64:
@@ -2343,11 +2343,10 @@ bool HloParserImpl::ParseDenseLiteral(Literal* literal, const Shape& shape) {
   auto get_index_str = [&elems_seen_per_dim](int dim) -> std::string {
     std::vector<int64> elems_seen_until_dim(elems_seen_per_dim.begin(),
                                             elems_seen_per_dim.begin() + dim);
-    return StrCat("[",
-                  StrJoin(elems_seen_until_dim, ",",
-                          [](std::string* out, const int64 num_elems) {
-                            StrAppend(out, num_elems - 1);
-                          }),
+    return StrCat("[", StrJoin(elems_seen_until_dim, ",",
+                               [](std::string* out, const int64 num_elems) {
+                                 StrAppend(out, num_elems - 1);
+                               }),
                   "]");
   };
 
@@ -2515,8 +2514,10 @@ struct MinMaxFiniteValue<Eigen::half> {
 };
 
 template <>
-struct MinMaxFiniteValue<bfloat16> {
-  static double max() { return static_cast<double>(bfloat16::highest()); }
+struct MinMaxFiniteValue<Eigen::bfloat16> {
+  static double max() {
+    return static_cast<double>(Eigen::NumTraits<Eigen::bfloat16>::highest());
+  }
   static double min() { return -max(); }
 };
 
@@ -4277,10 +4278,9 @@ bool HloParserImpl::ParseSingleInstruction(HloModule* module) {
   // The missing instruction hook we register creates the shaped instruction on
   // the fly as a parameter and returns it.
   int64 parameter_count = 0;
-  create_missing_instruction_ =
-      [this, &builder, &parameter_count](
-          const std::string& name,
-          const Shape& shape) -> std::pair<HloInstruction*, LocTy>* {
+  create_missing_instruction_ = [this, &builder, &parameter_count](
+      const std::string& name,
+      const Shape& shape) -> std::pair<HloInstruction*, LocTy>* {
     std::string new_name = name.empty() ? StrCat("_", parameter_count) : name;
     HloInstruction* parameter = builder.AddInstruction(
         HloInstruction::CreateParameter(parameter_count++, shape, new_name));
