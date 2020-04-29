@@ -21,10 +21,10 @@ limitations under the License.
 #include <functional>
 #include <type_traits>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/numeric_types.h"
 #include "tensorflow/core/framework/tensor_types.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 namespace Eigen {
 namespace internal {
@@ -1140,6 +1140,11 @@ struct greater : base<T, Eigen::internal::greater<T>, bool> {};
 
 template <typename T>
 struct greater_equal : base<T, Eigen::internal::greater_equal<T>, bool> {};
+
+template <typename T>
+struct greater_equal_with_cast
+    : base<T, Eigen::internal::scalar_cmp_with_cast_op<
+                  T, T, Eigen::internal::cmp_GE>> {};
 
 template <typename T>
 struct equal_to : base<T, Eigen::internal::equal_to<T>, bool> {};
