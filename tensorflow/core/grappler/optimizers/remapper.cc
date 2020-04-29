@@ -88,6 +88,14 @@ struct FusedBatchNorm {
   int fused_batch_norm = kMissingIndex;
 };
 
+// GreaterEqual with cast
+struct GreaterEqualWithCast {
+  GreaterEqualWithCast() = default;
+
+  int greater_equal = kMissingIndex;
+  int cast = kMissingIndex;
+};
+
 // FusedBatchNorm[$is_training] with fused side input and/or activation.
 struct FusedBatchNormEx {
   FusedBatchNormEx() = default;
@@ -1033,6 +1041,41 @@ bool FindFusedBatchNormEx(const RemapperContext& ctx, int node_index,
   return false;
 }
 
+bool FindGreaterEqualWithCast(const RemapperContext& ctx, int node_index,
+                              GreaterEqualWithCast* matched) {
+  const auto* node_view = ctx.graph_view.GetNode(node_index);
+  const auto* node_def = node_view->node();
+
+  if (!IsCast(*node_def) || HasControlFaninOrFanout(*node_view)) return false;
+
+  if (node_view->NumRegularFanins() != 1) return false;
+  const auto& regular_fanin_0 = node_view->GetRegularFanin(0);
+  const auto* greater_equal = regular_fanin_0.node_view();
+  const auto* greater_equal_node_def = greater_equal->node();
+  if (!IsGreaterEqual(*greater_equal_node_def) ||
+      HasControlFaninOrFanout(*greater_equal))
+    return false;
+
+  DataType dtype = GetDataTypeFromAttr(*greater_equal_node_def, "T");
+  DataType src_dtype = GetDataTypeFromAttr(*node_def, "SrcT");
+  DataType dst_dtype = GetDataTypeFromAttr(*node_def, "DstT");
+#if defined(INTEL_MKL) && defined(ENABLE_INTEL_MKL_BFLOAT16)
+  if (dtype != DT_FLOAT && dtype != DT_BFLOAT16) return false;
+#else
+  if (dtype != DT_FLOAT) return false;
+#endif
+  if ((dtype != dst_dtype) || (src_dtype != DT_BOOL)) return false;
+
+  // Check that only one node consumes the 0-th output of a GreaterEqual.
+  if (!HasAtMostOneDataFanoutAtPort0(*greater_equal) ||
+      IsInPreserveSet(ctx, greater_equal_node_def))
+    return false;
+
+  matched->cast = node_index;
+  matched->greater_equal = regular_fanin_0.node_index();
+  return true;
+}
+
 void CopyConv2DAttributes(const NodeDef& conv2d, NodeDef* fused_conv2d) {
   DCHECK(IsConv2D(conv2d)) << "Input node must be a Conv2D";
 
@@ -1571,6 +1614,40 @@ Status AddFusedBatchNormExNode(RemapperContext* ctx,
   return Status::OK();
 }
 
+Status AddGreaterEqualWithCastNode(RemapperContext* ctx,
+                                   const GreaterEqualWithCast& matched,
+                                   std::vector<bool>* invalidated_nodes,
+                                   std::vector<bool>* nodes_to_delete) {
+  const GraphDef* graph = ctx->graph_view.graph();
+  const NodeDef& greater_equal = graph->node(matched.greater_equal);
+  const NodeDef& cast = graph->node(matched.cast);
+
+  VLOG(2) << "Fuse " << cast.op() << " with GreaterEqual:"
+          << " cast=" << cast.name() << " invalidated="
+          << " greater_equal=" << greater_equal.name();
+
+  // Replace GreaterEqual and Cast with GreaterEqualWithCast.
+  NodeDef fused_op;
+  fused_op.set_op("_GreaterEqualWithCast");
+  fused_op.set_name(cast.name());
+  fused_op.set_device(greater_equal.device());
+
+  fused_op.add_input(greater_equal.input(0));
+  fused_op.add_input(greater_equal.input(1));
+  (*fused_op.mutable_attr())["T"] = greater_equal.attr().at("T");
+
+  utils::Mutation* mutation = ctx->graph_view.GetMutationBuilder();
+  Status status;
+  mutation->AddNode(std::move(fused_op), &status);
+  TF_RETURN_IF_ERROR(status);
+  TF_RETURN_IF_ERROR(mutation->Apply());
+
+  (*invalidated_nodes)[matched.greater_equal] = true;
+  (*invalidated_nodes)[matched.cast] = true;
+
+  return Status::OK();
+}
+
 Status AddBatchNormNodes(RemapperContext* ctx, const FusedBatchNorm& matched) {
   const GraphDef* graph = ctx->graph_view.graph();
   const NodeDef& fused_node = graph->node(matched.fused_batch_norm);
@@ -2005,6 +2082,15 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
     FusedBatchNorm fused_batch_norm;
     if (FindFusedBatchNorm(ctx, i, &fused_batch_norm)) {
       TF_RETURN_IF_ERROR(AddBatchNormNodes(&ctx, fused_batch_norm));
+      continue;
+    }
+
+    // Remap GreaterEqual+Cast into the GreaterEqualWithCast.
+    GreaterEqualWithCast greater_equal_with_cast;
+    if (allow_non_differentiable_rewrites &&
+        FindGreaterEqualWithCast(ctx, i, &greater_equal_with_cast)) {
+      TF_RETURN_IF_ERROR(AddGreaterEqualWithCastNode(
+          &ctx, greater_equal_with_cast, &invalidated_nodes, &nodes_to_delete));
       continue;
     }
   }

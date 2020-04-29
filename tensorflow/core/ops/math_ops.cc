@@ -708,6 +708,13 @@ REGISTER_OP("GreaterEqual").COMPARISON();
 
 #undef COMPARISON
 
+REGISTER_OP("_GreaterEqualWithCast")
+    .Input("x: T")
+    .Input("y: T")
+    .Output("z: T")
+    .Attr("T: {bfloat16, float}")
+    .SetShapeFn(shape_inference::BroadcastBinaryOpShapeFn);
+
 // --------------------------------------------------------------------------
 
 #define EQUALITY_COMPARISON()                                              \
