@@ -16,13 +16,13 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_KERNELS_CAST_OP_H_
 #define TENSORFLOW_CORE_KERNELS_CAST_OP_H_
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bfloat16.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_types.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/platform/byte_order.h"
 #include "tensorflow/core/platform/types.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 // Note that the GPU cast functor templates need to be instantiated unlike the
 // CPU ones, and hence their specializations are different than that for CPUs.
@@ -72,7 +72,7 @@ limitations under the License.
   SPECIALIZE_CAST(devname, Eigen::half, float)                        \
   SPECIALIZE_CAST(devname, Eigen::half, std::complex<double>)         \
   SPECIALIZE_CAST(devname, Eigen::half, std::complex<float>)          \
-  SPECIALIZE_CAST(devname, bfloat16, float)                           \
+  SPECIALIZE_CAST(devname, Eigen::bfloat16, float)                    \
   template <typename OUT_TYPE, typename IN_OUT>                       \
   struct CastFunctor<devname, OUT_TYPE, IN_OUT> {                     \
     void operator()(const devname& d,                                 \
@@ -131,7 +131,7 @@ constexpr int MantissaWidth<Eigen::half>() {
 }
 
 template <>
-constexpr int MantissaWidth<bfloat16>() {
+constexpr int MantissaWidth<Eigen::bfloat16>() {
   // Remember, there's 1 hidden bit
   return 7 + 1;
 }
@@ -277,48 +277,6 @@ struct functor_traits<scalar_cast_op<From, std::complex<To>>>
 template <typename From, typename To>
 struct functor_traits<scalar_cast_op<std::complex<From>, std::complex<To>>>
     : functor_traits_complex_impl<std::complex<From>, std::complex<To>> {};
-
-// Specialized cast op impls for bfloat16.
-template <>
-struct scalar_cast_op<::tensorflow::bfloat16, float> {
-  EIGEN_EMPTY_STRUCT_CTOR(scalar_cast_op)
-  typedef float result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(
-      const ::tensorflow::bfloat16& a) const {
-    float ret;
-    uint16_t* p = reinterpret_cast<uint16_t*>(&ret);
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    p[0] = a.value;
-    p[1] = 0;
-#else
-    static_assert(::tensorflow::port::kLittleEndian,
-                  "Not a little endian system!");
-    p[0] = 0;
-    p[1] = a.value;
-#endif
-    return ret;
-  }
-};
-
-template <>
-struct functor_traits<scalar_cast_op<::tensorflow::bfloat16, float>> {
-  enum { Cost = NumTraits<float>::AddCost, PacketAccess = false };
-};
-
-template <>
-struct scalar_cast_op<float, ::tensorflow::bfloat16> {
-  EIGEN_EMPTY_STRUCT_CTOR(scalar_cast_op)
-  typedef ::tensorflow::bfloat16 result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const ::tensorflow::bfloat16 operator()(
-      const float a) const {
-    return ::tensorflow::bfloat16(a);
-  }
-};
-
-template <>
-struct functor_traits<scalar_cast_op<float, ::tensorflow::bfloat16>> {
-  enum { Cost = NumTraits<float>::AddCost, PacketAccess = false };
-};
 
 }  // namespace internal
 }  // namespace Eigen
