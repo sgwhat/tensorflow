@@ -957,6 +957,29 @@ class ComputeSampledLogitsTest(test_lib.TestCase):
                         self.evaluate(got_sampled_softmax_loss), 1e-1)
 
 
+class GeluTest(test_lib.TestCase):
+
+  def test(self):
+
+    def gelu(x, approximate=True):
+      if approximate:
+        return 0.5 * x * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) *
+                                        (x + 0.044715 * np.power(x, 3))))
+      else:
+        from scipy.stats import norm  # pylint: disable=g-import-not-at-top
+        return x * norm.cdf(x)
+
+    np.random.seed(1)  # Make it reproducible.
+    x = np.random.randn(3, 4).astype(np.float32)
+    y = gelu(x)
+    z = self.evaluate(nn_ops.gelu(x))
+    self.assertAllClose(y, z)
+
+    y = gelu(x, False)
+    z = self.evaluate(nn_ops.gelu(x, False))
+    self.assertAllClose(y, z)
+
+
 class CReluTest(test_lib.TestCase):
 
   def test(self):

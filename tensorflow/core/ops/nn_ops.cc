@@ -1074,6 +1074,21 @@ REGISTER_OP("Dilation2DBackpropFilter")
 
 // --------------------------------------------------------------------------
 
+REGISTER_OP("Gelu")
+    .Input("features: T")
+    .Output("activations: T")
+    .Attr("T: {half, float, double}")
+    .Attr("approximate: bool = true")
+    .SetShapeFn(shape_inference::UnchangedShape);
+
+REGISTER_OP("GeluGrad")
+    .Input("gradients: T")
+    .Input("features: T")
+    .Output("backprops: T")
+    .Attr("T: {half, float, double}")
+    .Attr("approximate: bool = true")
+    .SetShapeFn(shape_inference::MergeBothInputsShapeFn);
+
 REGISTER_OP("Relu")
     .Input("features: T")
     .Output("activations: T")
