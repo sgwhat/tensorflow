@@ -8165,6 +8165,7 @@ tf_mkl_kernel_library(
     prefix = "mkl_relu",
     deps = [
         ":bounds_check",
+        ":no_op",
         ":ops_util",
         "//tensorflow/core:core_cpu",
         "//tensorflow/core:framework",

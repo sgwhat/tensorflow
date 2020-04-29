@@ -277,6 +277,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     csinfo_.fused_depthwise_conv2d = "_FusedDepthwiseConv2dNative";
     csinfo_.fused_matmul = "_FusedMatMul";
     csinfo_.fused_matmul_grad = "_FusedMatMulGrad";
+    csinfo_.gelu = "Gelu";
+    csinfo_.gelu_grad = "GeluGrad";
     csinfo_.identity = "Identity";
     csinfo_.leakyrelu = "LeakyRelu";
     csinfo_.leakyrelu_grad = "LeakyReluGrad";
@@ -500,6 +502,11 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
                       CopyAttrsAll, AlwaysRewrite,
                       kRewriteForLayoutPropagation});
 
+    rinfo_.push_back({csinfo_.gelu, mkl_op_registry::GetMklOpName(csinfo_.gelu),
+                      CopyAttrsAll, GeluRewrite, kRewriteForLayoutPropagation});
+    rinfo_.push_back({csinfo_.gelu_grad,
+                      mkl_op_registry::GetMklOpName(csinfo_.gelu_grad),
+                      CopyAttrsAll, GeluRewrite, kRewriteForLayoutPropagation});
     rinfo_.push_back({csinfo_.identity,
                       mkl_op_registry::GetMklOpName(csinfo_.identity),
                       CopyAttrsAll, RewriteIfAtleastOneMklInput,
@@ -947,6 +954,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     string fused_depthwise_conv2d;
     string fused_matmul;
     string fused_matmul_grad;
+    string gelu;
+    string gelu_grad;
     string identity;
     string leakyrelu;
     string leakyrelu_grad;
@@ -1547,6 +1556,27 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
         GetTensorDim(strides, data_format, 'C') == 1) {
       return true;
     }
+
+    return false;
+  }
+
+  // MKL-DNN's Gelu only support approximate version,
+  // so we only rewrite Gelu to MKL OP when approximate is true
+  static bool GeluRewrite(const Node* n) {
+    DCHECK(n);
+
+    bool approximate = false;
+    bool has_attr = TryGetNodeAttr(n->def(), "approximate", &approximate);
+    DCHECK(has_attr);
+
+    // If approximate is true, rewrite the node.
+    // Otherwise eigen node is used instead.
+    if (approximate) {
+      return true;
+    }
+    VLOG(1) << "GeluRewrite: The model sets approximate is false "
+            << "which case is not optimized by Intel MKL, thus using Eigen op"
+            << "for Gelu ";
 
     return false;
   }
