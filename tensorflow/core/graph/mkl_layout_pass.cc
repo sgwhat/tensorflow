@@ -1210,8 +1210,10 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
                 node->name()));
             return false;
           }
+          // Current fusion only supports 4D or 5D tensors according to `perm`
+          // vector, return false otherwise.
+          if (tensor.dim_size(0) != perm.size()) return false;
           DCHECK_EQ(tensor.dims(), 1);
-          DCHECK_EQ(tensor.dim_size(0), perm.size());
           if (type == DT_INT32) {
             const auto tensor_content = tensor.flat<int>().data();
             for (int i = 0; i < perm.size(); ++i)
