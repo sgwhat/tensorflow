@@ -294,6 +294,287 @@ TEST_F(MklRemapperTest, FuseDepthwiseConv2DWithBiasAndActivation) {
   }
 }
 
+class MklFuseMatMulWithBiasAddGrad : public MklRemapperTest {
+ public:
+  void VerifyFused(bool ta, bool tb) {
+    using ::tensorflow::ops::Placeholder;
+    int m = 2;
+    int k = 3;
+    int n = 4;
+
+    tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+    auto input_shape = ops::Placeholder::Shape({m, k});
+    if (ta) input_shape = ops::Placeholder::Shape({k, m});
+    auto weight_shape = ops::Placeholder::Shape({k, n});
+    if (tb) weight_shape = ops::Placeholder::Shape({n, k});
+
+    auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+    auto weight = Placeholder(s.WithOpName("weight"), DT_FLOAT, weight_shape);
+
+    auto matmul =
+        ops::MatMul(s.WithOpName("matmul"), input, weight,
+                    ops::MatMul::Attrs().TransposeA(ta).TransposeB(tb));
+    auto bias_add = ops::BiasAddGrad(s.WithOpName("bias_add_grad"), matmul);
+    Output matmul_grad_input;
+    Output matmul_grad_filter;
+    if (!ta && !tb) {
+      matmul_grad_input =
+          ops::MatMul(s.WithOpName("matmul_grad_input"), matmul, weight,
+                      ops::MatMul::Attrs().TransposeA(false).TransposeB(true));
+      matmul_grad_filter =
+          ops::MatMul(s.WithOpName("matmul_grad_filter"), input, matmul,
+                      ops::MatMul::Attrs().TransposeA(true).TransposeB(false));
+    } else if (!ta && tb) {
+      matmul_grad_input =
+          ops::MatMul(s.WithOpName("matmul_grad_input"), matmul, weight,
+                      ops::MatMul::Attrs().TransposeA(false).TransposeB(false));
+      matmul_grad_filter =
+          ops::MatMul(s.WithOpName("matmul_grad_filter"), matmul, input,
+                      ops::MatMul::Attrs().TransposeA(true).TransposeB(false));
+    } else if (ta && !tb) {
+      matmul_grad_input =
+          ops::MatMul(s.WithOpName("matmul_grad_input"), weight, matmul,
+                      ops::MatMul::Attrs().TransposeA(false).TransposeB(true));
+      matmul_grad_filter =
+          ops::MatMul(s.WithOpName("matmul_grad_filter"), input, matmul,
+                      ops::MatMul::Attrs().TransposeA(false).TransposeB(false));
+    } else {
+      matmul_grad_input =
+          ops::MatMul(s.WithOpName("matmul_grad_input"), weight, matmul,
+                      ops::MatMul::Attrs().TransposeA(true).TransposeB(true));
+      matmul_grad_filter =
+          ops::MatMul(s.WithOpName("matmul_grad_filter"), matmul, input,
+                      ops::MatMul::Attrs().TransposeA(true).TransposeB(true));
+    }
+    auto fetch_matmul =
+        ops::Identity(s.WithOpName("fetch_m"), matmul_grad_filter);
+    auto fetch_bias = ops::Identity(s.WithOpName("fetch_b"), bias_add);
+
+    auto input_t = GenerateRandomTensor<DT_FLOAT>({m, k});
+    if (ta) input_t = GenerateRandomTensor<DT_FLOAT>({k, m});
+    auto weight_t = GenerateRandomTensor<DT_FLOAT>({k, n});
+    if (tb) weight_t = GenerateRandomTensor<DT_FLOAT>({n, k});
+
+    GrapplerItem item;
+    item.fetch = {"fetch_m", "fetch_b"};
+    item.feed = {{"input", input_t}, {"weight", weight_t}};
+    TF_CHECK_OK(s.ToGraphDef(&item.graph));
+
+    // Place all nodes on CPU.
+    for (int i = 0; i < item.graph.node_size(); ++i) {
+      item.graph.mutable_node(i)->set_device("/device:CPU:0");
+    }
+
+    Remapper optimizer(RewriterConfig::ON);
+    GraphDef output;
+    TF_CHECK_OK(optimizer.Optimize(nullptr, item, &output));
+
+    int found = 0;
+    for (const NodeDef& node : output.node()) {
+      if (node.name() == "matmul_grad_filter") {
+        EXPECT_EQ("_FusedMatMulGrad", node.op());
+        EXPECT_EQ("input", node.input(0));
+        EXPECT_EQ("matmul", node.input(1));
+
+        const auto fused_ops = node.attr().at("fused_ops").list().s();
+        EXPECT_EQ(1, fused_ops.size());
+        EXPECT_EQ("BiasAddGrad", fused_ops[0]);
+        found++;
+      }
+    }
+    EXPECT_EQ(1, found);
+
+    auto tensors_expected = EvaluateNodes(item.graph, item.fetch, item.feed);
+    auto tensors = EvaluateNodes(output, item.fetch, item.feed);
+    EXPECT_EQ(2, tensors_expected.size());
+    EXPECT_EQ(2, tensors.size());
+    test::ExpectTensorNear<float>(tensors_expected[0], tensors[0], 1e-6);
+    test::ExpectTensorNear<float>(tensors_expected[1], tensors[1], 1e-6);
+  }
+};
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, a0b0) {
+  bool traspose_a = false;
+  bool traspose_b = false;
+  this->VerifyFused(traspose_a, traspose_b);
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, a0b1) {
+  bool traspose_a = false;
+  bool traspose_b = true;
+  this->VerifyFused(traspose_a, traspose_b);
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, a1b0) {
+  bool traspose_a = true;
+  bool traspose_b = false;
+  this->VerifyFused(traspose_a, traspose_b);
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, a1b1) {
+  bool traspose_a = true;
+  bool traspose_b = true;
+  this->VerifyFused(traspose_a, traspose_b);
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, negative0) {
+  using ::tensorflow::ops::Placeholder;
+  tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+  int m = 2, k = 3, n = 4;
+
+  auto input_shape = ops::Placeholder::Shape({m, k});
+  auto weight_shape = ops::Placeholder::Shape({k, n});
+
+  auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+  auto weight = Placeholder(s.WithOpName("weight"), DT_FLOAT, weight_shape);
+
+  auto matmul =
+      ops::MatMul(s.WithOpName("matmul"), input, weight,
+                  ops::MatMul::Attrs().TransposeA(false).TransposeB(false));
+  auto matmul1 =
+      ops::MatMul(s.WithOpName("matmul1"), weight, input,
+                  ops::MatMul::Attrs().TransposeA(true).TransposeB(true));
+  auto bias_add = ops::BiasAddGrad(s.WithOpName("bias_add_grad"), matmul);
+  Output matmul_grad_input;
+  Output matmul_grad_filter;
+  matmul_grad_input =
+      ops::MatMul(s.WithOpName("matmul_grad_input"), matmul, weight,
+                  ops::MatMul::Attrs().TransposeA(false).TransposeB(true));
+  matmul_grad_filter =
+      ops::MatMul(s.WithOpName("matmul_grad_filter"), input, matmul,
+                  ops::MatMul::Attrs().TransposeA(true).TransposeB(false));
+  auto fetch_matmul =
+      ops::Identity(s.WithOpName("fetch_m"), matmul_grad_filter);
+  auto fetch_bias = ops::Identity(s.WithOpName("fetch_b"), bias_add);
+
+  auto input_t = GenerateRandomTensor<DT_FLOAT>({m, k});
+  auto weight_t = GenerateRandomTensor<DT_FLOAT>({k, n});
+
+  GrapplerItem item;
+  item.fetch = {"fetch_m", "fetch_b"};
+  item.feed = {{"input", input_t}, {"weight", weight_t}};
+  TF_CHECK_OK(s.ToGraphDef(&item.graph));
+
+  // Place all nodes on CPU.
+  for (int i = 0; i < item.graph.node_size(); ++i) {
+    item.graph.mutable_node(i)->set_device("/device:CPU:0");
+  }
+
+  Remapper optimizer(RewriterConfig::ON);
+  GraphDef output;
+  TF_CHECK_OK(optimizer.Optimize(nullptr, item, &output));
+
+  for (const NodeDef& node : output.node()) {
+    if (node.name() == "matmul_grad_filter") {
+      EXPECT_EQ("MatMul", node.op());
+    }
+  }
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, negative1) {
+  using ::tensorflow::ops::Placeholder;
+  tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+  int m = 2, k = 3, n = 4;
+
+  auto input_shape = ops::Placeholder::Shape({m, k});
+  auto weight_shape = ops::Placeholder::Shape({k, n});
+
+  auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+  auto weight = Placeholder(s.WithOpName("weight"), DT_FLOAT, weight_shape);
+
+  auto matmul =
+      ops::MatMul(s.WithOpName("matmul"), input, weight,
+                  ops::MatMul::Attrs().TransposeA(false).TransposeB(false));
+  auto bias_add = ops::BiasAddGrad(s.WithOpName("bias_add_grad"), matmul);
+  auto relu = ops::Relu(s.WithOpName("relu"), matmul);
+  Output matmul_grad_input;
+  Output matmul_grad_filter;
+  matmul_grad_input =
+      ops::MatMul(s.WithOpName("matmul_grad_input"), matmul, weight,
+                  ops::MatMul::Attrs().TransposeA(false).TransposeB(true));
+  matmul_grad_filter =
+      ops::MatMul(s.WithOpName("matmul_grad_filter"), input, matmul,
+                  ops::MatMul::Attrs().TransposeA(true).TransposeB(false));
+  auto fetch_matmul =
+      ops::Identity(s.WithOpName("fetch_m"), matmul_grad_filter);
+  auto fetch_bias = ops::Identity(s.WithOpName("fetch_b"), bias_add);
+
+  auto input_t = GenerateRandomTensor<DT_FLOAT>({m, k});
+  auto weight_t = GenerateRandomTensor<DT_FLOAT>({k, n});
+
+  GrapplerItem item;
+  item.fetch = {"fetch_m", "fetch_b"};
+  item.feed = {{"input", input_t}, {"weight", weight_t}};
+  TF_CHECK_OK(s.ToGraphDef(&item.graph));
+
+  // Place all nodes on CPU.
+  for (int i = 0; i < item.graph.node_size(); ++i) {
+    item.graph.mutable_node(i)->set_device("/device:CPU:0");
+  }
+
+  Remapper optimizer(RewriterConfig::ON);
+  GraphDef output;
+  TF_CHECK_OK(optimizer.Optimize(nullptr, item, &output));
+
+  for (const NodeDef& node : output.node()) {
+    if (node.name() == "matmul_grad_filter") {
+      EXPECT_EQ("MatMul", node.op());
+    }
+  }
+}
+
+TEST_F(MklFuseMatMulWithBiasAddGrad, negative2) {
+  using ::tensorflow::ops::Placeholder;
+  tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+  int m = 2, k = 3, n = 4;
+
+  auto input_shape = ops::Placeholder::Shape({m, k});
+  auto weight_shape = ops::Placeholder::Shape({k, n});
+
+  auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+  auto weight = Placeholder(s.WithOpName("weight"), DT_FLOAT, weight_shape);
+
+  auto matmul =
+      ops::MatMul(s.WithOpName("matmul"), input, weight,
+                  ops::MatMul::Attrs().TransposeA(false).TransposeB(false));
+  auto bias_add = ops::BiasAddGrad(s.WithOpName("bias_add_grad"), matmul);
+  Output matmul_grad_input;
+  Output matmul_grad_filter;
+  matmul_grad_filter =
+      ops::MatMul(s.WithOpName("matmul_grad_filter"), input, matmul,
+                  ops::MatMul::Attrs().TransposeA(true).TransposeB(false));
+  auto fetch_matmul =
+      ops::Identity(s.WithOpName("fetch_m"), matmul_grad_filter);
+  auto fetch_bias = ops::Identity(s.WithOpName("fetch_b"), bias_add);
+
+  auto input_t = GenerateRandomTensor<DT_FLOAT>({m, k});
+  auto weight_t = GenerateRandomTensor<DT_FLOAT>({k, n});
+
+  GrapplerItem item;
+  item.fetch = {"fetch_m", "fetch_b"};
+  item.feed = {{"input", input_t}, {"weight", weight_t}};
+  TF_CHECK_OK(s.ToGraphDef(&item.graph));
+
+  // Place all nodes on CPU.
+  for (int i = 0; i < item.graph.node_size(); ++i) {
+    item.graph.mutable_node(i)->set_device("/device:CPU:0");
+  }
+
+  Remapper optimizer(RewriterConfig::ON);
+  GraphDef output;
+  TF_CHECK_OK(optimizer.Optimize(nullptr, item, &output));
+
+  for (const NodeDef& node : output.node()) {
+    if (node.name() == "matmul_grad_filter") {
+      EXPECT_EQ("MatMul", node.op());
+    }
+  }
+}
+
 }  // namespace grappler
 }  // namespace tensorflow
 #endif  // INTEL_MKL
