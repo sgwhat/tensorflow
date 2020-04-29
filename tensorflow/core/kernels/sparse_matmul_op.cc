@@ -23,7 +23,6 @@ limitations under the License.
 #include <memory>
 #include <vector>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/bfloat16.h"
 #include "tensorflow/core/framework/op.h"
@@ -37,6 +36,7 @@ limitations under the License.
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/platform/types.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #ifdef TENSORFLOW_USE_LIBXSMM
 #include "include/libxsmm_intrinsics_x86.h"
 #include "include/libxsmm_malloc.h"
@@ -165,7 +165,7 @@ bool IsZero(T v);
 
 template <>
 ALWAYS_INLINE bool IsZero(bfloat16 v) {
-  return v.IsZero();
+  return float(v) == 0.0f;
 }
 
 template <>
@@ -977,9 +977,9 @@ class SparseMatMulOp : public OpKernel {
     const int k2 = transpose_b_ ? b.dim_size(1) : b.dim_size(0);
 
     OP_REQUIRES(ctx, k == k2,
-                errors::InvalidArgument(
-                    "Matrix size incompatible: a: ", a.shape().DebugString(),
-                    ", b: ", b.shape().DebugString()));
+                errors::InvalidArgument("Matrix size incompatible: a: ",
+                                        a.shape().DebugString(), ", b: ",
+                                        b.shape().DebugString()));
     Tensor* output = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({m, n}), &output));
 
