@@ -417,6 +417,7 @@ class MklQuantizeV2Op : public OpKernel {
         ctx, ctx->allocate_temp(DT_FLOAT, input.shape(), &minfirst_tmpinput));
     if (mode_ == QUANTIZE_MODE_MIN_FIRST) {
       auto minfirst_input = minfirst_tmpinput.flat<float>().data();
+#if 0
       const Eigen::TensorOpCost cost(
           sizeof(float), /*load bytes*/
           sizeof(float), /*saved bytes*/
@@ -429,7 +430,12 @@ class MklQuantizeV2Op : public OpKernel {
         }
       };
       d.parallelFor(input.NumElements(), cost, ParallelSub);
-
+#else
+      #pragma omp parallel for schedule(static)
+      for (int i = 0; i < input.NumElements(); i++) {
+          minfirst_input[i] = flat_input[i] - min_range;  // have to round after multiplication
+      }
+#endif
       src.SetUsrMem(src_md, minfirst_input);
     } else {
       src.SetUsrMem(src_md, &src_tensor);

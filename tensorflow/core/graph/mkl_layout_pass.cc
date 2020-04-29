@@ -1384,8 +1384,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     string mode_string;
     string round_mode_string;
     DataType type;
-    TryGetNodeAttr(n->def(), "narrow_range", &narrow_range);
-    TryGetNodeAttr(n->def(), "axis", &axis);
+    //TryGetNodeAttr(n->def(), "narrow_range", &narrow_range);
+    //TryGetNodeAttr(n->def(), "axis", &axis);
     TF_CHECK_OK(GetNodeAttr(n->def(), "mode", &mode_string));
     TF_CHECK_OK(GetNodeAttr(n->def(), "round_mode", &round_mode_string));
     TF_CHECK_OK(GetNodeAttr(n->def(), "T", &type));
