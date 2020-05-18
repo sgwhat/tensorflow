@@ -707,7 +707,9 @@ bool FindContractionWithBiasAddAndAdd(const RemapperContext& ctx,
 bool SharedInputWithMatMul(const RemapperContext& ctx, int node_index,
                            int node_dz) {
   const auto* node_view = ctx.graph_view.GetNode(node_index);
+  if (node_view == nullptr) return false;
   const auto* shared_input = node_view->GetRegularFanin(0).node_view();
+  if (shared_input == nullptr) return false;
   if (shared_input->node_index() == node_dz) {
     shared_input = node_view->GetRegularFanin(1).node_view();
   }
@@ -733,6 +735,7 @@ bool SharedInputWithMatMul(const RemapperContext& ctx, int node_index,
 bool FindContractionWithBiasAddGrad(const RemapperContext& ctx, int node_index,
                                     ContractionWithBiasAddGrad* matched) {
   const auto* node_view = ctx.graph_view.GetNode(node_index);
+  if (node_view == nullptr) return false;
   // TODO(lyandy): Forward controls for patterns with control dependencies.
   if (HasControlFaninOrFanout(*node_view)) return false;
 
@@ -764,6 +767,7 @@ bool FindContractionWithBiasAddGrad(const RemapperContext& ctx, int node_index,
   // the forward input with index 0.
 
   const auto* dz = node_view->GetRegularFanin(0).node_view();
+  if (dz == nullptr) return false;
   // The node index for MatMulGradFilter if found.
   int matmul_grad_filter_idx = -1;
 
@@ -1838,6 +1842,7 @@ Status AddBatchNormNodes(RemapperContext* ctx, const FusedBatchNorm& matched) {
 #ifdef INTEL_MKL
 bool IsConv2DWithAdd(const RemapperContext& ctx, int node_index) {
   const auto* node_view = ctx.graph_view.GetNode(node_index);
+  if (node_view == nullptr) return false;
   const auto* node_def = node_view->node();
 
   // Candidate for Conv2D + Add or Conv2D + BiasAdd + Add fusion.
