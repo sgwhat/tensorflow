@@ -722,7 +722,7 @@ bool SharedInputWithMatMul(const RemapperContext& ctx, int node_index,
       if (!IsMatMul(*(x_node_view->node())) &&
           x_node_view->GetOp() != kFusedMatMul)
         continue;
-
+      if (shared_input == nullptr) return false;
       if (shared_input->node_index() ==
           x_node_view->GetRegularFanin(0).node_view()->node_index()) {
         return true;
