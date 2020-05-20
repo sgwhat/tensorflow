@@ -591,25 +591,6 @@ cc_test(
 )
 
 cc_library(
-    name = "custom_ops",
-    srcs = ["rfft2d.cc"],
-    hdrs = ["custom_ops_register.h"],
-    copts = tflite_copts(),
-    deps = [
-        ":kernel_util",
-        ":op_macros",
-        "//tensorflow/lite:context",
-        "//tensorflow/lite/c:common",
-        "//tensorflow/lite/kernels/hashtable:hashtable_op_kernels",
-        "//tensorflow/lite/kernels/internal:kernel_utils",
-        "//tensorflow/lite/kernels/internal:tensor",
-        "//third_party/fft2d:fft2d_headers",
-        "@fft2d",
-        "@ruy//ruy/profiler:instrumentation",
-    ],
-)
-
-cc_library(
     name = "lstm_eval",
     srcs = ["lstm_eval.cc"],
     hdrs = ["lstm_eval.h"],
@@ -2000,19 +1981,6 @@ cc_test(
         ":test_main",
         ":test_util",
         "//tensorflow/lite:framework",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "rfft2d_test",
-    size = "small",
-    srcs = ["rfft2d_test.cc"],
-    deps = [
-        ":custom_ops",
-        ":test_util",
-        "//tensorflow/lite:framework",
-        "//tensorflow/lite/c:common",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 // See docs in ../ops/audio_ops.cc
-
+/*
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -122,3 +122,4 @@ REGISTER_KERNEL_BUILDER(Name("AudioSpectrogram").Device(DEVICE_CPU),
                         AudioSpectrogramOp);
 
 }  // namespace tensorflow
+*/

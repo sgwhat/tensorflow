@@ -6186,8 +6186,6 @@ cc_library(
     deps = [
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
-        "//third_party/fft2d:fft2d_headers",
-        "@fft2d",
     ],
 )
 
@@ -7059,10 +7057,8 @@ cc_library(
         "//tensorflow/core:portable_tensorflow_lib_lite",
         "//tensorflow/core:protos_all_cc_impl",
         "//third_party/eigen3",
-        "//third_party/fft2d:fft2d_headers",
         "@com_google_absl//absl/base",
         "@com_google_protobuf//:protobuf",
-        "@fft2d",
         "@gemmlowp",
     ],
     alwayslink = 1,
