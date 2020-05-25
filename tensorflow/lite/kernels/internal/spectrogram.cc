@@ -12,11 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
+/*
 #include "tensorflow/lite/kernels/internal/spectrogram.h"
 
 #include <assert.h>
 #include <math.h>
+
 
 #include "third_party/fft2d/fft.h"
 
@@ -242,3 +243,4 @@ void Spectrogram::ProcessCoreFFT() {
 
 }  // namespace internal
 }  // namespace tflite
+*/

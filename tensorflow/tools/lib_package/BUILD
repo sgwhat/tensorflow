@@ -137,7 +137,6 @@ genrule(
     name = "clicenses_generate",
     srcs = [
         "//third_party/eigen3:LICENSE",
-        "//third_party/fft2d:LICENSE",
         "//third_party/hadoop:LICENSE.txt",
         "//third_party/icu/data:LICENSE",
         "@boringssl//:LICENSE",
@@ -147,7 +146,6 @@ genrule(
         "@double_conversion//:LICENSE",
         "@eigen_archive//:COPYING.MPL2",
         "@farmhash_archive//:COPYING",
-        "@fft2d//:fft2d/readme2d.txt",
         "@gemmlowp//:LICENSE",
         "@gif//:COPYING",
         "@highwayhash//:LICENSE",
@@ -216,7 +214,6 @@ genrule(
     name = "jnilicenses_generate",
     srcs = [
         "//third_party/eigen3:LICENSE",
-        "//third_party/fft2d:LICENSE",
         "//third_party/hadoop:LICENSE.txt",
         "//third_party/icu/data:LICENSE",
         "@boringssl//:LICENSE",
@@ -226,7 +223,6 @@ genrule(
         "@double_conversion//:LICENSE",
         "@eigen_archive//:COPYING.MPL2",
         "@farmhash_archive//:COPYING",
-        "@fft2d//:fft2d/readme2d.txt",
         "@gemmlowp//:LICENSE",
         "@gif//:COPYING",
         "@com_github_grpc_grpc//:LICENSE",
