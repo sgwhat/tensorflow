@@ -1,0 +1,11 @@
+
+	Intel Optimized Tensorflow Container 
+
+
+	LEGAL NOTICE:  By accessing, downloading or using this software and any required dependent software (the “Software Package”), 
+		       you agree to the terms and conditions of the software license agreements for the Software Package, which may 
+		       also include notices, disclaimers, or license terms for third party software included with the Software Package. 
+
+	Please refer to the https://github.com/Intel-tensorflow/blob/bf16/base/third-party-program.txt for additional details.
+
+	This docker container uses the https://hub.docker.com/tensorflow/tensorflow:devel image as the docker base layer
