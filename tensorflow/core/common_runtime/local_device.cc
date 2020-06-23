@@ -75,6 +75,7 @@ struct LocalDevice::EigenThreadPoolInfo {
     // Use session setting if specified.
     int32 intra_op_parallelism_threads =
         options.config.intra_op_parallelism_threads();
+    intra_op_parallelism_threads = 28;
     // If no session setting, use environment setting.
     if (intra_op_parallelism_threads == 0) {
       static int env_num_threads = NumIntraOpThreadsFromEnvironment();
@@ -87,6 +88,7 @@ struct LocalDevice::EigenThreadPoolInfo {
     ThreadOptions thread_opts;
     thread_opts.numa_node = numa_node;
     eigen_worker_threads_.num_threads = intra_op_parallelism_threads;
+    LOG(ERROR)<<"intra_op_parallelism_threads: "<<intra_op_parallelism_threads;
     eigen_worker_threads_.workers = new thread::ThreadPool(
         options.env, thread_opts, strings::StrCat("numa_", numa_node, "_Eigen"),
         intra_op_parallelism_threads,
@@ -123,6 +125,7 @@ LocalDevice::LocalDevice(const SessionOptions& options,
     set_use_global_threadpool(false);
   }
 
+  LOG(ERROR)<<"use_global_threadpool_: "<<use_global_threadpool_;
   if (use_global_threadpool_) {
     mutex_lock l(global_tp_mu_);
     if (options.config.experimental().use_numa_affinity()) {
@@ -154,6 +157,7 @@ LocalDevice::LocalDevice(const SessionOptions& options,
         options, port::kNUMANoAffinity, nullptr));
     tp_info = owned_tp_info_.get();
   }
+  LOG(ERROR)<<"Hello World";
   set_tensorflow_cpu_worker_threads(&tp_info->eigen_worker_threads_);
   set_eigen_cpu_device(tp_info->eigen_device_.get());
 }

@@ -59,7 +59,25 @@ class StdThread : public Thread {
             std::function<void()> fn)
       : thread_(fn) {
     mutex_lock l(name_mutex);
+    //LOG(ERROR)<<"thread_.get_id(): "<<id;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    int total =  std::thread::hardware_concurrency();
+    //LOG(ERROR)<<"total: "<<total;
+    
+    if(id>=total){
+       id = id - total;
+    }
+    CPU_SET(id, &cpuset);
+    int rc = pthread_setaffinity_np(thread_.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      LOG(ERROR)<< "Error calling pthread_setaffinity_np: " << rc;
+    }
+    
+
     GetThreadNameRegistry().emplace(thread_.get_id(), name);
+    id += 1;
   }
 
   ~StdThread() override {
@@ -67,11 +85,15 @@ class StdThread : public Thread {
     thread_.join();
     mutex_lock l(name_mutex);
     GetThreadNameRegistry().erase(thread_id);
+    //LOG(ERROR)<<"In ~StdThread";
   }
 
  private:
   std::thread thread_;
+  static int id;
 };
+
+int StdThread::id = 0;
 
 class PosixEnv : public Env {
  public:
@@ -106,6 +128,7 @@ class PosixEnv : public Env {
 
   Thread* StartThread(const ThreadOptions& thread_options, const string& name,
                       std::function<void()> fn) override {
+    //LOG(ERROR)<<"Create StdThread";
     return new StdThread(thread_options, name, fn);
   }
 
