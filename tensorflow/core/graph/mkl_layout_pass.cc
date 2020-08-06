@@ -2874,6 +2874,24 @@ void MklLayoutRewritePass::CopyAttrsQuantizedMatMulWithBias(
   DataType Tbias;
   Status bias_status = GetNodeAttr(orig_node->def(), "Tbias", &Tbias);
   if (bias_status.ToString() == "OK") nb->Attr("Tbias", Tbias);
+
+  //Copy the attr input_quant_mode from input to output node
+  string mode_string;
+  TF_CHECK_OK(GetNodeAttr(orig_node->def(), "input_quant_mode", &mode_string));
+  nb->Attr("input_quant_mode", mode_string); 
+
+  bool trans_a=false;
+  VLOG(INFO) << "Niroop MLPass trans_a 1: " << trans_a;
+  TF_CHECK_OK(GetNodeAttr(orig_node->def(), "transpose_a", &trans_a));
+  VLOG(INFO) << "Niroop MLPass trans_a 2: " << trans_a;
+  nb->Attr("transpose_a", trans_a); 
+
+  bool trans_b=false;
+  VLOG(INFO) << "Niroop MLPass trans_b 1: " << trans_b;
+  TF_CHECK_OK(GetNodeAttr(orig_node->def(), "transpose_b", &trans_b));
+  VLOG(INFO) << "Niroop MLPass trans_b 2: " << trans_b;
+  nb->Attr("transpose_b", trans_b); 
+    
 }
 
 void MklLayoutRewritePass::CopyFormatAttrsConv(

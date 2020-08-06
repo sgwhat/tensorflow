@@ -151,15 +151,33 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       OP_REQUIRES_OK(context, context->GetAttr("is_weight_const",
                                                &(this->is_weight_const_)));
     }
+
+    OP_REQUIRES_OK(context, context->GetAttr("transpose_a", &transpose_a_));
+    OP_REQUIRES_OK(context, context->GetAttr("transpose_b", &transpose_b_));
   }
 
   void Compute(OpKernelContext* context) override {
     try {
+
+      VLOG(INFO) << "$$$$$$$$$$$$$$$$$Niroop$$$$$$$$$$$$$$$$$$$$$$$$";
       // Input tensors
       const Tensor& src_tensor = MklGetInput(context, this->kInputIndexSrc);
       const Tensor& weight_tensor =
           MklGetInput(context, this->kInputIndexWeight);
       const Tensor& bias_tensor = MklGetInput(context, this->kInputIndexBias);
+
+      VLOG(INFO) << "Niroop 1: src_tensor.shape() : " << src_tensor.shape();
+      VLOG(INFO) << "Niroop 1: weight_tensor.shape() : " << weight_tensor.shape();
+      VLOG(INFO) << "Niroop 1: bias_tensor.shape() : " << bias_tensor.shape();
+
+      VLOG(INFO) << "Niroop 1: src_tensor.dims() : " << src_tensor.dims();
+      VLOG(INFO) << "Niroop 1: weight_tensor.dims() : " << weight_tensor.dims();
+      VLOG(INFO) << "Niroop 1: bias_tensor.dims() : " << bias_tensor.dims();
+
+      VLOG(INFO) << "Niroop 1: src_tensor.DebugString() : " << src_tensor.DebugString();
+      VLOG(INFO) << "Niroop 1: weight_tensor.DebugString() : " << weight_tensor.DebugString();
+      VLOG(INFO) << "Niroop 1: bias_tensor.DebugString() : " << bias_tensor.DebugString();
+      
 
       MklDnnShape src_mkl_shape, weight_mkl_shape;
       GetMklShape(context, this->kInputIndexSrc, &src_mkl_shape);
@@ -167,6 +185,9 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       OP_REQUIRES(context, !weight_mkl_shape.IsMklTensor(),
                   errors::InvalidArgument("Weight should not be in "
                                           "MKL Layout"));
+
+      //VLOG(INFO) << "Niroop 1: src_mkl_shape : " << src_mkl_shape.DebugString();
+      //VLOG(INFO) << "Niroop 1: weight_mkl_shape : " << weight_mkl_shape.DebugString();
 
       MklDnnData<Tinput> src(&(this->cpu_engine_));
       MklDnnData<Tweight> weight(&(this->cpu_engine_));
@@ -182,15 +203,25 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
                                  ? weight_mkl_shape.GetTfShape()
                                  : weight_tensor.shape();
 
+      VLOG(INFO) << "Niroop 1: src_tf_shape : " << weight_tf_shape;
+      VLOG(INFO) << "Niroop 1: weight_tf_shape : " << weight_tf_shape;
+
+      VLOG(INFO) << "Niroop 2";
       src_dims = TFShapeToMklDnnDims(src_tf_shape);
       weight_dims = TFShapeToMklDnnDims(weight_tf_shape);
       dst_dims_mkl_order = {static_cast<int>(src_tf_shape.dim_size(0)),
                             static_cast<int>(weight_tf_shape.dim_size(1))};
+      
+      VLOG(INFO) << "Niroop 2: src_dims : " << src_dims[0];
+      VLOG(INFO) << "Niroop 2: weight_dims : " << weight_dims[0];
+      VLOG(INFO) << "Niroop 2: dst_dims_mkl_order : " << dst_dims_mkl_order[0];
 
       // Weight dims need to be reversed to create inner-product forward
       // descriptor
       weight_dims = {static_cast<int>(weight_tf_shape.dim_size(1)),
                      static_cast<int>(weight_tf_shape.dim_size(0))};
+      
+      VLOG(INFO) << "Niroop 2: weight_dims reversed : " << weight_dims[0];
 
       // Create memory for user data.
       // Describe how the inputs and outputs of inner-product look like. Also
@@ -198,7 +229,18 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       Tensor* dst_tensor = nullptr;
       auto input_output_fmt = MEMORY_FORMAT::nc;
       auto input_output_fmt_mkldnn = MKL_TENSOR_FORMAT_NC;
+      
+      if (transpose_b_) {
+        VLOG(INFO) << " Niroop 2: transpose_b_ so memory format will be MEMORY_FORMAT::oi";}
 
+      auto weight_memory_format =
+          transpose_b_ ? MEMORY_FORMAT::oi : MEMORY_FORMAT::io;
+
+      VLOG(INFO) << "Niroop 2: input_output_fmt : " << input_output_fmt;
+      VLOG(INFO) << "Niroop 2: input_output_fmt_mkldnn : " << input_output_fmt_mkldnn;
+      VLOG(INFO) << "Niroop 2: weight_memory_fmt : " << weight_memory_format;
+
+      VLOG(INFO) << "Niroop 3";
       // If input is in MKL layout, then simply take input layout; otherwise,
       // construct input TF layout. For TF layout, although input shape
       // (src_dims) required is in MKL-DNN order, the layout is Tensorflow's
@@ -208,61 +250,74 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
               ? src_mkl_shape.GetMklLayout()
               : memory::desc(src_dims, MklDnnType<Tinput>(), input_output_fmt);
       src.SetUsrMem(src_md, &src_tensor);
-
+      VLOG(INFO) << "Niroop 4";
       // Although weight shape (weight_dims) required is in MKL-DNN order,
       // the layout is TensorFlow's layout.
+      VLOG(INFO) << "Niroop 4: " << (weight_mkl_shape.IsMklTensor() ? "mkllayout" : "MEMORYFORMAT");
       auto weight_md = weight_mkl_shape.IsMklTensor()
                            ? weight_mkl_shape.GetMklLayout()
-                           : memory::desc(weight_dims, MklDnnType<Tweight>(),
-                                          MEMORY_FORMAT::io);
+                           : memory::desc(weight_dims, MklDnnType<Tweight>(), weight_memory_format);
+      //                                    MEMORY_FORMAT::io);
       weight.SetUsrMem(weight_md, &weight_tensor);
-
+      VLOG(INFO) << "Niroop 5";
       MklDnnMatMulFwdPrimitive<float, Tinput, Tweight, Tbias, Toutput>*
           matmul_fwd = nullptr;
       memory::dims bias_dims = {static_cast<int>(bias_tensor.dim_size(0))};
-
+      VLOG(INFO) << "Niroop 6";
       MklDnnMatMulFwdParams matmul_fwd_dims(src_dims, weight_dims, bias_dims,
-                                            dst_dims_mkl_order);
+                                            dst_dims_mkl_order, weight_memory_format);
+
+      VLOG(INFO) << "Niroop 6: src_dims : " << src_dims[0];
+      VLOG(INFO) << "Niroop 6: weight_dims : " << weight_dims[0];
+      VLOG(INFO) << "Niroop 6: bias_dims : " << bias_dims[0];
+      VLOG(INFO) << "Niroop 6: dst_dims_mkl_order : " << dst_dims_mkl_order[0];
 
       // Extend the basic parameters for data types and fusions.
       this->ExtendMklDnnMatMulFwdParams(context, matmul_fwd_dims);
-
+      VLOG(INFO) << "Niroop 7.0";
       // Get a MatMul fwd from primitive pool.
+      VLOG(INFO) << "Niroop 7.1";
       matmul_fwd =
           MklDnnMatMulFwdPrimitiveFactory<float, Tinput, Tweight, Tbias,
                                           Toutput>::Get(matmul_fwd_dims, 0);
-
+      VLOG(INFO) << "Niroop 7.2";
       // Allocate output Tensor.
       std::shared_ptr<mkldnn::inner_product_forward::primitive_desc>
           matmul_fwd_pd = matmul_fwd->GetPrimitiveDesc();
+      VLOG(INFO) << "Niroop 7.4";
       this->AllocateOutputTensor(context, *matmul_fwd_pd, dst_dims_mkl_order,
                                  input_output_fmt_mkldnn, &dst_tensor);
-
+      VLOG(INFO) << "Niroop 8";
       Toutput* dst_data =
           reinterpret_cast<Toutput*>(dst_tensor->flat<Toutput>().data());
 
       // Check if src and weight data need to be reordered.
       Tinput* src_data = nullptr;
       if (IS_SRC_REORDER_NEEDED(src_md, matmul_fwd_pd, matmul_fwd)) {
+        VLOG(INFO) << "Niroop 9 S-Reorder Needed";
         src.SetUsrMem(src_md, &src_tensor);
         src.CheckReorderToOpMem(MEMORY_PD_WITHOUT_DATA(
             matmul_fwd_pd.get()->PRIMITIVE_DESC_SRC, this->cpu_engine_));
         src_data = static_cast<Tinput*>(src.GetOpMem().get_data_handle());
       } else {
+        VLOG(INFO) << "Niroop 9 No S-Reorder Needed";
         src_data = static_cast<Tinput*>(
             const_cast<Tinput*>(src_tensor.flat<Tinput>().data()));
       }
 
       Tweight* weight_data = nullptr;
       if (IS_WEIGHTS_REORDER_NEEDED(weight_md, matmul_fwd_pd, matmul_fwd)) {
+        VLOG(INFO) << "Niroop 10 W-Reorder Neeeded";
         bool is_weight_cached = false;
         // For batch size 1, MKL-DNN expects that weight format is OI whereas
         // TF default format is IO. So in that case convert weight from IO
         // to OI for the first iteration and cache it to reuse in the
         // subsequent iterations, if the weight is constant.
         if (this->is_weight_const_) {
+          VLOG(INFO) << "Niroop 10 b";
           // Check if the weight is already cached or not
           if (this->IsWeightCacheEmpty(context)) {
+            VLOG(INFO) << "Niroop 10 c";
             // Cache weight if it is not cached.
             this->CacheWeight(context, matmul_fwd_pd, weight_data,
                               weight_tensor, weight, weight_md);
@@ -276,8 +331,9 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
 #endif
           is_weight_cached = (weight_data != nullptr);
         }
-
+        VLOG(INFO) << "Niroop 11";
         if (!is_weight_cached) {
+          VLOG(INFO) << "Niroop 12";
           weight.SetUsrMem(weight_md, &weight_tensor);
           weight.CheckReorderToOpMem(MEMORY_PD_WITHOUT_DATA(
               matmul_fwd_pd.get()->PRIMITIVE_DESC_WEIGHTS, this->cpu_engine_));
@@ -286,15 +342,18 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
         }
 
       } else {
+        VLOG(INFO) << "Niroop 13";
         weight_data = static_cast<Tweight*>(
             const_cast<Tweight*>(weight_tensor.flat<Tweight>().data()));
       }
-
+      VLOG(INFO) << "Niroop 14";
       // Execute inner-product
       Tbias* bias_data = this->GetBiasHandle(context, matmul_fwd_pd,
                                              bias_tensor, weight_tensor);
       matmul_fwd->Execute(src_data, weight_data, bias_data, dst_data);
+      VLOG(INFO) << "Niroop 15";
     } catch (mkldnn::error& e) {
+      VLOG(INFO) << "Niroop 16 catch";
       string error_msg = tensorflow::strings::StrCat(
           "Status: ", e.status, ", message: ", string(e.message), ", in file ",
           __FILE__, ":", __LINE__);
@@ -306,18 +365,21 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
     float max_output_value;
     if (std::is_same<Toutput, quint8>::value ||
         std::is_same<Toutput, qint8>::value) {
+        VLOG(INFO) << "Niroop 17 A";
       // This is the case the inner-product and requantization are fused.
       // "min_freezed_output" and "max_freezed_output" are the requested range
       // for the output.
       min_output_value = context->input(7).flat<float>()(0);
       max_output_value = context->input(8).flat<float>()(0);
     } else {
+      VLOG(INFO) << "Niroop 17 B";
       ComputeOutputRangeForInt32(context, &min_output_value, &max_output_value);
     }
 
     if (std::is_same<Toutput, quint8>::value ||
         std::is_same<Toutput, qint8>::value ||
         std::is_same<Toutput, qint32>::value) {
+          VLOG(INFO) << "Niroop 18 A";
       Tensor* output_min = nullptr;
       Tensor* output_max = nullptr;
       MklDnnShape output_min_mkl_shape, output_max_mkl_shape;
@@ -330,6 +392,7 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       output_min->flat<float>()(0) = min_output_value;
       output_max->flat<float>()(0) = max_output_value;
     }
+    VLOG(INFO) << "Niroop 19";
   }
 
  protected:
@@ -494,6 +557,9 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
 
   // Buffer to save the compensated bias
   float* comp_bias_ = nullptr;
+
+  bool transpose_a_;
+  bool transpose_b_;
 
   int mode_;
 };
