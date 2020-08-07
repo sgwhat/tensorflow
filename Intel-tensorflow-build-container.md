@@ -68,11 +68,22 @@ This guide will help you generate a container with Intel's r2.3 branch.
               
 5.  Check if the image was built successfully and tag it:
     
+    AVX container:
+
     ```
     $ docker images
-    intel-mkl/tensorflow:tensorflow-2.3.0-avx512-devel-mkl
+    intel-mkl/tensorflow:2.3.0-devel-mkl
+
+    $ docker tag intel-mkl/tensorflow:2.3.0-devel-mkl intel/intel-optimized-tensorflow:2.3.0-devel-mkl
+    ```   
+
+    AVX512 container:
     
-    $ docker tag intel-mkl/tensorflow:tensorflow-2.3.0-avx512-devel-mkl intel/intel-optimized-tensorflow:2.3.0-avx
+    ```
+    $ docker images
+    intel-mkl/tensorflow:2.3.0-avx512-devel-mkl
+    
+    $ docker tag intel-mkl/tensorflow:2.3.0-avx512-devel-mkl intel/intel-optimized-tensorflow:2.3.0-avx512-devel-mkl
     ``` 
     
 	
