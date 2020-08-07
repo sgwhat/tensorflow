@@ -33,7 +33,7 @@ This guide will help you generate a container with Intel's r2.3 branch.
     	BUILD_TF_V2_CONTAINERS=yes \    	
     	BAZEL_VERSION=3.1.0 \    	
     	ENABLE_SECURE_BUILD=yes \
-        ENABLE_HOROVOD=yes
+        ENABLE_HOROVOD=yes \
     	./build-dev-container.sh > ./container_build.log
     ```
     
@@ -49,7 +49,7 @@ This guide will help you generate a container with Intel's r2.3 branch.
     	BUILD_TF_V2_CONTAINERS=yes \    	
     	BAZEL_VERSION=3.1.0 \    	
     	ENABLE_SECURE_BUILD=yes \
-        ENABLE_HOROVOD=yes
+        ENABLE_HOROVOD=yes \
     	./build-dev-container.sh > ./container_build.log
     ```  
 	
