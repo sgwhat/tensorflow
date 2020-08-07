@@ -20,6 +20,7 @@ This guide will help you generate a container with Intel's r2.3 branch.
     ```
     
 3.  Run build-dev-container.sh by passing the following env parameters:
+    
     For AVX containers:
     
     ```
@@ -32,8 +33,8 @@ This guide will help you generate a container with Intel's r2.3 branch.
     	BUILD_TF_V2_CONTAINERS=yes \    	
     	BAZEL_VERSION=3.1.0 \    	
     	ENABLE_SECURE_BUILD=yes \
-      ENABLE_HOROVOD=yes
-    	 ./build-dev-container.sh > ./container_build.log
+        ENABLE_HOROVOD=yes
+    	./build-dev-container.sh > ./container_build.log
     ```
     
     For AVX512 containers:
@@ -48,8 +49,8 @@ This guide will help you generate a container with Intel's r2.3 branch.
     	BUILD_TF_V2_CONTAINERS=yes \    	
     	BAZEL_VERSION=3.1.0 \    	
     	ENABLE_SECURE_BUILD=yes \
-      ENABLE_HOROVOD=yes
-    	 ./build-dev-container.sh > ./container_build.log
+        ENABLE_HOROVOD=yes
+    	./build-dev-container.sh > ./container_build.log
     ```  
 	
 4.  Open a second terminal session at the same location and run `tail -f container_build.log` to monitor container build progress
