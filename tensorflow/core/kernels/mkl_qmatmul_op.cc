@@ -188,7 +188,7 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
 
       //VLOG(INFO) << "Niroop 1: src_mkl_shape : " << src_mkl_shape.DebugString();
       //VLOG(INFO) << "Niroop 1: weight_mkl_shape : " << weight_mkl_shape.DebugString();
-
+      /*
       MklDnnData<Tinput> src(&(this->cpu_engine_));
       MklDnnData<Tweight> weight(&(this->cpu_engine_));
 
@@ -218,8 +218,10 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
 
       // Weight dims need to be reversed to create inner-product forward
       // descriptor
+      if (!transpose_b_) {
       weight_dims = {static_cast<int>(weight_tf_shape.dim_size(1)),
                      static_cast<int>(weight_tf_shape.dim_size(0))};
+      }
       
       VLOG(INFO) << "Niroop 2: weight_dims reversed : " << weight_dims[0];
 
@@ -264,28 +266,107 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
           matmul_fwd = nullptr;
       memory::dims bias_dims = {static_cast<int>(bias_tensor.dim_size(0))};
       VLOG(INFO) << "Niroop 6";
-      MklDnnMatMulFwdParams matmul_fwd_dims(src_dims, weight_dims, bias_dims,
-                                            dst_dims_mkl_order, weight_memory_format);
+      MklDnnMatMulFwdParams matmul_params(src_dims, weight_dims, bias_dims,
+                                            dst_dims_mkl_order);
 
       VLOG(INFO) << "Niroop 6: src_dims : " << src_dims[0];
       VLOG(INFO) << "Niroop 6: weight_dims : " << weight_dims[0];
       VLOG(INFO) << "Niroop 6: bias_dims : " << bias_dims[0];
       VLOG(INFO) << "Niroop 6: dst_dims_mkl_order : " << dst_dims_mkl_order[0];
+      */
+
+
+      ////////////////////////////////////////////////////////////////////////////
+
+      MklDnnMatMulFwdPrimitive<float, Tinput, Tweight, Tbias, Toutput>* matmul_fwd = nullptr;
+      auto input_output_fmt_mkldnn = MKL_TENSOR_FORMAT_NC;
+
+          // Get shapes of input tensors
+      auto src_tf_shape = src_mkl_shape.IsMklTensor() ? src_mkl_shape.GetTfShape()
+                                                      : src_tensor.shape();
+      auto weight_tf_shape = weight_tensor.shape();
+
+      // Check the constraint of input matrix and bias
+      OP_REQUIRES(context, TensorShapeUtils::IsMatrix(src_tf_shape),
+                  errors::InvalidArgument("In[0] is not a matrix"));
+      OP_REQUIRES(context, TensorShapeUtils::IsMatrix(weight_tf_shape),
+                  errors::InvalidArgument("In[1] is not a matrix"));
+      OP_REQUIRES(context, TensorShapeUtils::IsVector(bias_tensor.shape()),
+                  errors::InvalidArgument("Biases must be 1D"));
+
+      // Expression: [batch, k] * [k, channel] + [channel] = [batch, channel]
+      //
+      // Get dimension size of each matrix, dim_pair[] is the location of k
+      // in the inputs, we have constraint that k of the two inputs are
+      // the same
+      const int dim_pair[] = {1, transpose_b_ ? 1 : 0};
+      const int batch = src_tf_shape.dim_size(1 - dim_pair[0]);
+      const int k = src_tf_shape.dim_size(dim_pair[0]);
+      const int channel = weight_tf_shape.dim_size(1 - dim_pair[1]);
+
+      OP_REQUIRES(
+          context, k == weight_tf_shape.dim_size(dim_pair[1]),
+          errors::InvalidArgument(
+              "Matrix size-incompatible: In[0]: ", src_tf_shape.DebugString(),
+              ", In[1]: ", weight_tf_shape.DebugString()));
+      OP_REQUIRES(context, bias_tensor.shape().dim_size(0) == channel,
+                  errors::InvalidArgument(
+                      "Must provide as many biases as the channel size: ",
+                      bias_tensor.shape().DebugString(), " vs. ", channel));
+
+      // For inputs s[batch, k], w[k, channel] and b[channel], the primitive
+      // dims should be described like this:
+      //   s[batch, k] * w^T[channel, k] + b[channel] = dst[batch, channel]
+      //    [n,    ic] *    [oc,     ic] +  [oc]      =    [n,          oc]
+      memory::dims src_dims = memory::dims({batch, k});
+      // Reverse the weights dims from [k, channel] to [channel, k].
+      memory::dims weight_dims = memory::dims({channel, k});
+      memory::dims bias_dims = memory::dims({channel});
+      memory::dims dst_dims = memory::dims({batch, channel});
+      MEMORY_FORMAT src_format = MEMORY_FORMAT::nc;
+      MEMORY_FORMAT weight_format =
+          transpose_b_ ? MEMORY_FORMAT::oi : MEMORY_FORMAT::io;
+
+      // Set weight format for primitive:
+      //   1. const, let MKL-DNN determine format because it will be cached;
+      //   2. var, keep the original format to avoid reordering.
+      MklDnnMatMulFwdParams matmul_params(
+          src_dims, weight_dims, bias_dims, dst_dims, src_format,
+          (this->is_weight_const_) ? MEMORY_FORMAT::any : weight_format);
+
+      // Prepare the input and output for primitive.
+      //T* src_data = const_cast<T*>(src_tensor.flat<T>().data());
+      //T* weight_data = const_cast<T*>(weight_tensor.flat<T>().data());
+      //T* bias_data = const_cast<T*>(bias_tensor.flat<T>().data());
+      //T* dst_data = const_cast<T*>(dst_tensor->flat<T>().data());
+
+      // Reorder input if necessary.
+      MklDnnData<Tinput> src(&(this->cpu_engine_));
+      MklDnnData<Tweight> weight(&(this->cpu_engine_));
+
+      auto src_md = src_mkl_shape.IsMklTensor()
+                        ? src_mkl_shape.GetMklLayout()
+                        : memory::desc(src_dims, MklDnnType<Tinput>(), src_format);
+
+      // Get cached data when weight is const.
+      const memory::desc weight_md =
+          memory::desc(weight_dims, MklDnnType<Tweight>(), weight_format);
+      /////////////////////////////////////////////////////////////////////////////
 
       // Extend the basic parameters for data types and fusions.
-      this->ExtendMklDnnMatMulFwdParams(context, matmul_fwd_dims);
+      this->ExtendMklDnnMatMulFwdParams(context, matmul_params);
       VLOG(INFO) << "Niroop 7.0";
       // Get a MatMul fwd from primitive pool.
       VLOG(INFO) << "Niroop 7.1";
-      matmul_fwd =
-          MklDnnMatMulFwdPrimitiveFactory<float, Tinput, Tweight, Tbias,
-                                          Toutput>::Get(matmul_fwd_dims, 0);
+      matmul_fwd = MklDnnMatMulFwdPrimitiveFactory<float, Tinput, Tweight, Tbias, 
+                                          Toutput>::Get(matmul_params, 0);
       VLOG(INFO) << "Niroop 7.2";
       // Allocate output Tensor.
+      Tensor* dst_tensor = nullptr;
       std::shared_ptr<mkldnn::inner_product_forward::primitive_desc>
           matmul_fwd_pd = matmul_fwd->GetPrimitiveDesc();
       VLOG(INFO) << "Niroop 7.4";
-      this->AllocateOutputTensor(context, *matmul_fwd_pd, dst_dims_mkl_order,
+      this->AllocateOutputTensor(context, *matmul_fwd_pd, dst_dims,
                                  input_output_fmt_mkldnn, &dst_tensor);
       VLOG(INFO) << "Niroop 8";
       Toutput* dst_data =
