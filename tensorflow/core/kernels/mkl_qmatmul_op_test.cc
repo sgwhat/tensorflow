@@ -67,7 +67,7 @@ class QuantizedMatMulTest : public OpsTestBase {};
 
 // Two small matrices A of type uint8 and B of type int8  are multiplied
 // and the result is added with int32 bias
-TEST_F(QuantizedMatMulTest, Small_withBias) {
+TEST_F(QuantizedMatMulTest, Small_withBias_u8s8) {
   TF_ASSERT_OK(
       NodeDefBuilder("quantized_mat_mul_op", "_MklQuantizedMatMulWithBias")
           .Input(FakeInput(DT_QUINT8))
@@ -129,6 +129,81 @@ TEST_F(QuantizedMatMulTest, Small_withBias) {
   // 173 + 1 = 174, 188 + 2 = 190, 203 + 3 = 206, 218 + 4 = 222
   Tensor expected(allocator(), DT_QINT32, TensorShape({2, 4}));
   test::FillValues<qint32>(&expected, {75, 82, 89, 96, 174, 190, 206, 222});
+
+  const Tensor& output = *GetOutput(0);
+  const Tensor& mkl_shape_tensor = *GetOutput(3);
+  ConvMklToTF conv_comp;
+  Tensor output_quantized;
+  conv_comp.ConvertMKL2TF<qint32>(DT_QINT32, output, mkl_shape_tensor,
+                                  output_quantized);
+
+  test::ExpectTensorEqual<qint32>(expected, output_quantized);
+}
+
+// Two small matrices A of type int8 and B of type int8  are multiplied
+// and the result is added with int32 bias
+TEST_F(QuantizedMatMulTest, Small_withBias_s8s8) {
+  TF_ASSERT_OK(
+      NodeDefBuilder("quantized_mat_mul_op", "_MklQuantizedMatMulWithBias")
+          .Input(FakeInput(DT_QINT8))
+          .Input(FakeInput(DT_QINT8))
+          .Input(FakeInput(DT_QINT32))
+          .Input(FakeInput(DT_FLOAT))
+          .Input(FakeInput(DT_FLOAT))
+          .Input(FakeInput(DT_FLOAT))
+          .Input(FakeInput(DT_FLOAT))
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Input(FakeInput(DT_UINT8))  // MKL second tensor
+          .Attr("Toutput", DataTypeToEnum<qint32>::v())
+          .Attr("T", DataTypeToEnum<qint32>::v())
+          .Attr("_kernel", "QuantizedMklOp")
+          .Attr("transpose_a", false)
+          .Attr("transpose_b", false)
+          .Finalize(node_def()));
+  TF_ASSERT_OK(InitOp());
+  // A matrix is:
+  // |  1 |  2 |  3 |
+  // |  4 |  5 |  6 |
+  AddInputFromArray<qint8>(TensorShape({2, 3}), {-1, 2, -3, 4, -5, 6});
+  // B matrix is:
+  // |  7 |  8 |  9 | 10 |
+  // | 11 | 12 | 13 | 14 |
+  // | 15 | 16 | 17 | 18 |
+  AddInputFromArray<qint8>(TensorShape({3, 4}),
+                           {7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18});
+  AddInputFromArray<qint32>(TensorShape({4}), {1, 2, 3, 4});
+  AddInputFromArray<float>(TensorShape({1}), {-127.0f});
+  AddInputFromArray<float>(TensorShape({1}), {127.0f});
+  AddInputFromArray<float>(TensorShape({1}), {-127.0f});
+  AddInputFromArray<float>(TensorShape({1}), {127.0f});
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+  AddInputFromArray<uint8>(kDummyShape, kDummyTensor);
+
+  TF_ASSERT_OK(RunOpKernel());
+  // Here are the results we expect, from hand calculations:
+  // (1 * 7) + (2 * 11) + (3 * 15) = 74
+  // (1 * 8) + (2 * 12) + (3 * 16) = 80
+  // (1 * 9) + (2 * 13) + (3 * 17) = 86
+  // (1 * 10) + (2 * 14) + (3 * 18) = 92
+  // (4 * 7) + (5 * 11) + (6 * 15) = 173
+  // (4 * 8) + (5 * 12) + (6 * 16) = 188
+  // (4 * 9) + (5 * 13) + (6 * 17) = 203
+  // (4 * 10) + (5 * 14) + (6 * 18) = 218
+  // Final result after Bias addition:
+  // 74  + 1 = 75 , 80  + 2 = 82 , 86  + 3 = 89 , 92  + 4 = 96,
+  // 173 + 1 = 174, 188 + 2 = 190, 203 + 3 = 206, 218 + 4 = 222
+  Tensor expected(allocator(), DT_QINT32, TensorShape({2, 4}));
+  test::FillValues<qint32>(&expected, {-29, -30, -31, -32, 64, 70, 76, 82});
 
   const Tensor& output = *GetOutput(0);
   const Tensor& mkl_shape_tensor = *GetOutput(3);
