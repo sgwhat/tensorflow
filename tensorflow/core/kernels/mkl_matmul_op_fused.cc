@@ -199,6 +199,19 @@ class MklFusedMatMulOp : public MklDnnMatMulOpBase<T, T> {
         }
       }
 
+      VLOG(INFO) << "....................dst_tensor Min and Max.....................";
+      T min_outp = std::numeric_limits<T>::max();
+      T max_outp = std::numeric_limits<T>::min();
+      for(int i = 0; i < dst_tensor->NumElements(); ++i)
+      {
+        if(min_outp > dst_data[i]) { min_outp = dst_data[i];}
+        if(max_outp < dst_data[i]) { max_outp = dst_data[i];}
+      }
+      VLOG(INFO) << "Node name " << ctx->op_kernel().name();
+      VLOG(INFO) << " min_dst_data " << min_outp << "  ";
+      VLOG(INFO) << " max_dst_data " << max_outp << "  ";
+      VLOG(INFO) << "....................dst_tensor End........................";  
+
       // Execute fused matmul op.
       matmul_prim->Execute(src_data, weight_data, bias_data, dst_data);
     } catch (mkldnn::error& e) {
@@ -267,6 +280,7 @@ class MklFusedMatMulGradOp : public OpKernel {
   }
   void Compute(OpKernelContext* ctx) {
     try {
+      VLOG(INFO) << "Niroop********";
       const size_t diff_dst_index = 1;  // index of diff_dst input tensor
       const size_t src_index = 0;       // index of src input tensor
 
@@ -388,6 +402,23 @@ class MklFusedMatMulGradOp : public OpKernel {
       // Execute fused matmul op.
       matmul_prim->Execute(src_data, diff_weight_data, bias_data,
                            diff_dst_data);
+      
+      VLOG(INFO) << "....................dst_tensor Min and Max.....................";
+      T min_outp = std::numeric_limits<T>::max();
+      T max_outp = std::numeric_limits<T>::min();
+      VLOG(INFO) << " min_dst_data limit " << min_outp << "  ";
+      VLOG(INFO) << " max_dst_data limit " << max_outp << "  ";
+      for(int i = 0; i < diff_dst_tensor.NumElements(); ++i)
+      {
+        if(min_outp > diff_dst_data[i]) { min_outp = diff_dst_data[i];}
+        if(max_outp < diff_dst_data[i]) { max_outp = diff_dst_data[i];}
+      }
+      VLOG(INFO) << " min_dst_data " << min_outp << "  ";
+      VLOG(INFO) << " max_dst_data " << max_outp << "  ";
+      VLOG(INFO) << "....................dst_tensor End........................";  
+
+      VLOG(INFO) << "########################End Values#########################";
+      
     } catch (mkldnn::error& e) {
       string error_msg = "Status: " + std::to_string(e.status) +
                          ", message: " + string(e.message) + ", in file " +

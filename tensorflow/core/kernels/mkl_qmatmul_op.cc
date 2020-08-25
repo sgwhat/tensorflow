@@ -433,6 +433,40 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
                                              bias_tensor, weight_tensor);
       matmul_fwd->Execute(src_data, weight_data, bias_data, dst_data);
       VLOG(INFO) << "Niroop 15";
+      /*
+      VLOG(INFO) << "##########################Values#########################";
+      VLOG(INFO) << "....................src_tensor Start.....................";
+      for(int i = 0; i < src_tensor.NumElements(); ++i)
+      {
+        // make sure (src_tensor.flat<Tinput>().data()));
+        //src_data = static_cast<Tinput*>(const_cast<Tinput*>(src_tensor.flat<Tinput>().data()));
+        VLOG(INFO) << "  " << src_data[i] << "  ";
+      }
+      VLOG(INFO) << "....................src_tensor End........................";  
+
+      VLOG(INFO) << "....................weight_tensor Start.....................";
+      for(int i = 0; i < weight_tensor.NumElements(); ++i)
+      {
+        VLOG(INFO) << "  " << weight_data[i] << "  ";
+      }
+      VLOG(INFO) << "....................weight_tensor End........................";  
+
+      VLOG(INFO) << "....................bias_tensor Start.....................";
+      for(int i = 0; i < bias_tensor.NumElements(); ++i)
+      {
+        VLOG(INFO) << "  " << bias_data[i] << "  ";
+      }
+      VLOG(INFO) << "....................bias_tensor End........................";  
+
+      VLOG(INFO) << "....................dst_tensor Start.....................";
+      for(int i = 0; i < dst_tensor->NumElements(); ++i)
+      {
+        VLOG(INFO) << "  " << dst_data[i] << "  ";
+      }
+      VLOG(INFO) << "....................dst_tensor End........................";  
+      
+      */
+
     } catch (mkldnn::error& e) {
       VLOG(INFO) << "Niroop 16 catch";
       string error_msg = tensorflow::strings::StrCat(
@@ -473,7 +507,7 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       output_min->flat<float>()(0) = min_output_value;
       output_max->flat<float>()(0) = max_output_value;
     }
-    VLOG(INFO) << "Niroop 19";
+    VLOG(INFO) << "Niroop 19";    
   }
 
  protected:

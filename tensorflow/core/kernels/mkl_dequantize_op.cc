@@ -42,6 +42,7 @@ class MklDequantizeOp : public OpKernel {
   explicit MklDequantizeOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
     string mode_string;
     OP_REQUIRES_OK(ctx, ctx->GetAttr("mode", &mode_string));
+    VLOG(INFO) << "Niroop mkl dequqntize op mode string: " << mode_string;
     OP_REQUIRES(ctx, mode_string == "SCALED",
                 errors::InvalidArgument(
                     "MklDequantizeOp only supports 'SCALED' mode, but got '" +
@@ -52,14 +53,14 @@ class MklDequantizeOp : public OpKernel {
     try {
       // Using CPU device
       auto cpu_engine = engine(ENGINE_CPU, 0);
-
+VLOG(INFO) << "Niroop mkl dequqntize op : 10";
       // Get the inputs
       const Tensor& src_tensor = MklGetInput(ctx, kSrcIndex);
       const float min_range =
           MklGetInput(ctx, kMinIndex).template flat<float>()(0);
       const float max_range =
           MklGetInput(ctx, kMaxIndex).template flat<float>()(0);
-
+VLOG(INFO) << "Niroop mkl dequqntize op : 20";
       // Get MklShape
       MklDnnShape src_mkl_shape;
       GetMklShape(ctx, kSrcIndex, &src_mkl_shape);
@@ -70,7 +71,7 @@ class MklDequantizeOp : public OpKernel {
                           ? src_mkl_shape.GetSizesAsMklDnnDims()
                           : TFShapeToMklDnnDims(src_tensor.shape());
       auto output_dims = src_dims;
-
+VLOG(INFO) << "Niroop mkl dequqntize op : 30";
       // Create reorder memory for src and dst
       MklDnnData<T> src(&cpu_engine);
       MklDnnData<float> dst(&cpu_engine);
@@ -89,7 +90,9 @@ class MklDequantizeOp : public OpKernel {
       Tensor* output_tensor = nullptr;
       MklDnnShape output_mkl_shape;
       TensorShape output_tf_shape;
+VLOG(INFO) << "Niroop mkl dequqntize op : 40";
 #ifndef ENABLE_MKLDNN_V1
+VLOG(INFO) << "Niroop mkl dequqntize op : 50";
       memory::desc dst_md =
           src_mkl_shape.IsMklTensor()
               ? memory::desc(src_dims, MklDnnType<float>(),
@@ -97,6 +100,7 @@ class MklDequantizeOp : public OpKernel {
               : memory::desc(src_dims, MklDnnType<float>(),
                              MEMORY_FORMAT::nhwc);
 #else
+VLOG(INFO) << "Niroop mkl dequqntize op : 55";
       memory::desc dst_md = memory::desc();
       if (src_mkl_shape.IsMklTensor()) {
         dst_md = memory::desc(src_mkl_shape.GetMklLayout().data);
@@ -108,10 +112,11 @@ class MklDequantizeOp : public OpKernel {
             memory::desc(src_dims, MklDnnType<float>(), MEMORY_FORMAT::nhwc);
       }
 #endif  // !ENABLE_MKLDNN_V1
-
+VLOG(INFO) << "Niroop mkl dequqntize op : 60";
       // If input is MKL shape, output is also MKL shape.
       // If input is TF shape, output is also TF shape.
       if (src_mkl_shape.IsMklTensor()) {
+VLOG(INFO) << "Niroop mkl dequqntize op : 70";
         output_mkl_shape.SetMklTensor(true);
         output_mkl_shape.SetMklLayout(&dst_md);
         output_mkl_shape.SetElemType(MklDnnType<float>());
@@ -121,6 +126,7 @@ class MklDequantizeOp : public OpKernel {
         output_tf_shape.AddDim(GET_MEMORY_SIZE_FROM_MD(dst_md, cpu_engine) /
                                sizeof(float));
       } else {
+VLOG(INFO) << "Niroop mkl dequqntize op : 75";
         output_mkl_shape.SetMklTensor(false);
         output_tf_shape = MklDnnDimsToTFShape(output_dims);
       }
@@ -163,7 +169,9 @@ class MklDequantizeOp : public OpKernel {
           GET_MEMORY_PRIMITIVE_DESC_FROM_MEM_PTR(src.GetUsrMem()),
           GET_MEMORY_PRIMITIVE_DESC_FROM_MEM_PTR(dst.GetUsrMem()), cpu_engine,
           attr);
+VLOG(INFO) << "Niroop mkl dequqntize op : 80";
 #ifdef ENABLE_MKLDNN_V1
+VLOG(INFO) << "Niroop mkl dequqntize op : 90";
       net.push_back(reorder(reorder_pd));
       std::vector<std::unordered_map<int, memory>> reorder_net_args;
       reorder_net_args.push_back({{MKLDNN_ARG_FROM, *src.GetUsrMem()},
@@ -172,10 +180,12 @@ class MklDequantizeOp : public OpKernel {
       execute_primitives(net, std::make_shared<stream>(reorder_stream),
                          reorder_net_args);
 #else
+VLOG(INFO) << "Niroop mkl dequqntize op : 95";
       net.push_back(reorder(reorder_pd, *src.GetUsrMem(), *dst.GetUsrMem()));
       reorder_stream.submit(net);
 #endif  // ENABLE_MKLDNN_V1
     } catch (mkldnn::error& e) {
+      VLOG(INFO) << "Niroop mkl dequqntize op : catch caught 9999";
       string error_msg = "Status: " + std::to_string(e.status) +
                          ", message: " + string(e.message) + ", in file " +
                          string(__FILE__) + ":" + std::to_string(__LINE__);
