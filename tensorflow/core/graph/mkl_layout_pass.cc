@@ -1517,7 +1517,7 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
                  "Eigen op for Dequantize op.";
       return false;
     }
-    return true;
+    return false;
   }
 
   // Rewrite rule for _FusedMatMul.
