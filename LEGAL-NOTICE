@@ -4,4 +4,4 @@ Intel® Optimization for TensorFlow
 
 Please refer to the https://github.com/Intel-tensorflow/tensorflow/blob/r2.2.0/third-party-programs.txt for additional details
 
-This docker container uses the https://hub.docker.com/tensorflow/tensorflow:2.2.0 image as the docker base layer
+This docker container uses the https://hub.docker.com/tensorflow/tensorflow:2.2.0, https://hub.docker.com/tensorflow/tensorflow:2.2.0-jupyter image as the docker base layer
