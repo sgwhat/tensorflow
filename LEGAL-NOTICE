@@ -8,4 +8,4 @@ Intel® Optimized Tensorflow Container
                       similarly-named text file included with the Software Package for additional details. 
 
         Please refer to the  https://github.com/Intel-tensorflow/tensorflow/blob/r2.3/third-party-programs.txt and 
-        https://github.com/Intel-tensorflow/tensorflow/blob/shwetaoj/add_docker_tpp_file/third-party-programs-for-docker-containers.txt for additional details.
+        https://github.com/Intel-tensorflow/tensorflow/blob/r2.3/third-party-programs-for-docker-containers.txt for additional details.
