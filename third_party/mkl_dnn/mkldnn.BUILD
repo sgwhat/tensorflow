@@ -78,6 +78,9 @@ cc_library(
         "@org_tensorflow//tensorflow:linux_x86_64": [
             "-fopenmp",  # only works with gcc
         ],
+        "@org_tensorflow//tensorflow:windows": [
+            "/openmp",
+        ],
         # TODO(ibiryukov): enable openmp with clang by including libomp as a
         # dependency.
         ":clang_linux_x86_64": [],
