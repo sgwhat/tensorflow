@@ -1505,18 +1505,19 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     string mode_string;
     TF_CHECK_OK(GetNodeAttr(n->def(), "mode", &mode_string));
     if (mode_string != "SCALED") {
-      VLOG(1) << "DequantizeRewrite: Mode is not SCALED. "
+      VLOG(0) << "DequantizeRewrite: Mode is not SCALED. "
               << "This case is not optimized by Intel MKL kernel, thus using "
                  "Eigen op for Dequantize op.";
       return false;
     }
     if (input->IsConstant()) {
-      VLOG(1) << "DequantizeRewrite: Trying to dequantize a Const node which "
+      VLOG(0) << "DequantizeRewrite: Trying to dequantize a Const node which "
               << "could possibly be a filter. "
               << "This case is not supported by Intel MKL kernel, thus using "
                  "Eigen op for Dequantize op.";
       return false;
     }
+    VLOG(0) << "DequantizeRewrite: default option reached ";
     return true;
   }
 
