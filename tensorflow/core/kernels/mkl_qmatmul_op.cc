@@ -294,6 +294,12 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       Tbias* bias_data = this->GetBiasHandle(context, matmul_fwd_pd,
                                              bias_tensor, weight_tensor);
       matmul_fwd->Execute(src_data, weight_data, bias_data, dst_data);
+
+      
+
+
+
+
     } catch (mkldnn::error& e) {
       string error_msg = tensorflow::strings::StrCat(
           "Status: ", e.status, ", message: ", string(e.message), ", in file ",
@@ -302,6 +308,7 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
           context,
           errors::Aborted("Operation received an exception:", error_msg));
     }
+      
     float min_output_value;
     float max_output_value;
     if (std::is_same<Toutput, quint8>::value ||
@@ -516,6 +523,28 @@ class MklDnnQuantizedMatMulReluOp
                             Toutput>::ExtendMklDnnMatMulFwdParams(context,
                                                                   params);
     params.post_op_params.push_back({"relu", {1.0, 0.0, 0.0}});
+    //params.post_op_params.push_back({"gelu", {1.0, 1.0, 0.0}});
+  }
+};
+
+template <typename Device, typename Tinput, typename Tweight, typename Tbias,
+          typename Toutput>
+class MklDnnQuantizedMatMulGeluOp
+    : public MklDnnQuantizedMatMulOp<Device, Tinput, Tweight, Tbias, Toutput> {
+ public:
+  virtual ~MklDnnQuantizedMatMulGeluOp() {}
+
+  explicit MklDnnQuantizedMatMulGeluOp(OpKernelConstruction* context)
+      : MklDnnQuantizedMatMulOp<Device, Tinput, Tweight, Tbias, Toutput>(
+            context) {}
+
+ protected:
+  void ExtendMklDnnMatMulFwdParams(OpKernelContext* context,
+                                   MklDnnMatMulFwdParams& params) override {
+    MklDnnQuantizedMatMulOp<Device, quint8, qint8, Tbias,
+                            Toutput>::ExtendMklDnnMatMulFwdParams(context,
+                                                                  params);
+    params.post_op_params.push_back({"gelu", {1.0, 1.0, 0.0}});
   }
 };
 
@@ -661,6 +690,59 @@ REGISTER_KERNEL_BUILDER(
         .TypeConstraint<float>("Toutput")
         .Label(mkl_op_registry::kMklQuantizedOpLabel),
     MklDnnQuantizedMatMulOp<CPUDevice, quint8, qint8, float, float>);
+
+// Gelu
+// Register NoOp kernel for QuantizedMatMulWithBiasAndGelu to get a python
+// interface. This kernel will be replaced by an MKL kernel during
+// graph-optimization pass.
+REGISTER_KERNEL_BUILDER(Name("QuantizedMatMulWithBiasAndGelu")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<quint8>("T1")
+                            .TypeConstraint<qint8>("T2")
+                            .TypeConstraint<qint32>("Toutput"),
+                        NoOp);
+// Register NoOp kernel for QuantizedIPWithBiasAndGeluAndRequantize
+// to get a python interface. This kernel will be replaced by an MKL kernel
+// during graph-optimization pass.
+REGISTER_KERNEL_BUILDER(Name("QuantizedMatMulWithBiasAndGeluAndRequantize")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<quint8>("T1")
+                            .TypeConstraint<qint8>("T2")
+                            .TypeConstraint("Tbias", {DT_QINT32, DT_FLOAT})
+                            .TypeConstraint<quint8>("Toutput"),
+                        NoOp);
+
+// Register a templatized implementation of _MklQuantizedMatMulWithBiasAndRelu.
+REGISTER_KERNEL_BUILDER(
+    Name("_MklQuantizedMatMulWithBiasAndGelu")
+        .Device(DEVICE_CPU)
+        .TypeConstraint<quint8>("T1")
+        .TypeConstraint<qint8>("T2")
+        .TypeConstraint<qint32>("Toutput")
+        .Label(mkl_op_registry::kMklQuantizedOpLabel),
+    MklDnnQuantizedMatMulGeluOp<CPUDevice, quint8, qint8, float, qint32>);
+// Register a templatized implementation of
+// _MklQuantizedMatMulWithBiasAndReluAndRequantize.
+REGISTER_KERNEL_BUILDER(
+    Name("_MklQuantizedMatMulWithBiasAndGeluAndRequantize")
+        .Device(DEVICE_CPU)
+        .TypeConstraint<quint8>("T1")
+        .TypeConstraint<qint8>("T2")
+        .TypeConstraint<qint32>("Tbias")
+        .TypeConstraint<quint8>("Toutput")
+        .Label(mkl_op_registry::kMklQuantizedOpLabel),
+    MklDnnQuantizedMatMulGeluOp<CPUDevice, quint8, qint8, qint32, quint8>);
+REGISTER_KERNEL_BUILDER(
+    Name("_MklQuantizedMatMulWithBiasAndGeluAndRequantize")
+        .Device(DEVICE_CPU)
+        .TypeConstraint<quint8>("T1")
+        .TypeConstraint<qint8>("T2")
+        .TypeConstraint<float>("Tbias")
+        .TypeConstraint<quint8>("Toutput")
+        .Label(mkl_op_registry::kMklQuantizedOpLabel),
+    MklDnnQuantizedMatMulGeluOp<CPUDevice, quint8, qint8, float, quint8>);
+
+
 
 }  // namespace tensorflow
 

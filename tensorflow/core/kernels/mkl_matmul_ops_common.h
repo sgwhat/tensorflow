@@ -239,6 +239,7 @@ class MklDnnMatMulFwdPrimitive : public MklPrimitive {
     if (!post_op_params.empty()) {
       for (auto const& post_op_param : post_op_params) {
         if (post_op_param.name == "relu") {
+          VLOG(INFO) << "Niroop RRRReluuuuu";
           DCHECK_EQ(post_op_param.param.size(), 3);
           float op_scale = post_op_param.param[0];
           float op_alpha = post_op_param.param[1];
@@ -260,6 +261,7 @@ class MklDnnMatMulFwdPrimitive : public MklPrimitive {
           post_ops.append_eltwise(op_scale, ALGORITHM::eltwise_elu, op_alpha,
                                   op_beta);
         } else if (post_op_param.name == "gelu") {
+          VLOG(INFO) << "Niroop GGGGeluuuuu";
           DCHECK_EQ(post_op_param.param.size(), 3);
           float op_scale = post_op_param.param[0];
           float op_alpha = post_op_param.param[1];
