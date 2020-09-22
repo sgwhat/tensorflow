@@ -30,8 +30,9 @@ struct SessionOptions;
 class DeviceFactory {
  public:
   virtual ~DeviceFactory() {}
-  static void Register(const std::string& device_type, DeviceFactory* factory,
-                       int priority);
+  static void Register(const std::string& device_type,
+                       const std::string& subdevice_type,
+                       DeviceFactory* factory, int priority);
   static DeviceFactory* GetFactory(const std::string& device_type);
 
   // Append to "*devices" all suitable devices, respecting
@@ -89,6 +90,9 @@ class DeviceFactory {
   // REGISTER_LOCAL_DEVICE_FACTORY to see the existing priorities used
   // for built-in devices.
   static int32 DevicePriority(const std::string& device_type);
+
+  // Return the "subdevice_type" string fr a "device_type string".
+  static string SubDeviceType(const std::string& device_type);
 };
 
 namespace dfactory {
@@ -127,7 +131,7 @@ class Registrar {
   // ThreadPoolDevice: 60
   // Default: 50
   explicit Registrar(const std::string& device_type, int priority = 50) {
-    DeviceFactory::Register(device_type, new Factory(), priority);
+    DeviceFactory::Register(device_type, device_type, new Factory(), priority);
   }
 };
 

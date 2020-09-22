@@ -492,6 +492,8 @@ tf_cuda_library(
     ],
     hdrs = [
         "kernels.h",
+        "//tensorflow/c/experimental/stream_executor:stream_executor.h",
+        "//tensorflow/c/experimental/stream_executor:stream_executor_internal.h",
     ],
     copts = tf_copts(),
     visibility = ["//visibility:public"],
@@ -499,6 +501,7 @@ tf_cuda_library(
         ":tf_status",
         ":tf_status_helper",
         ":tf_tensor_internal",
+        "//tensorflow/c/experimental/stream_executor:stream_executor",
     ] + select({
         "//tensorflow:android": [
             ":c_api_internal",

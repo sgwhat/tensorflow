@@ -2159,6 +2159,7 @@ filegroup(
 filegroup(
     name = "framework_internal_public_headers",
     srcs = [
+        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init.h",
         "//tensorflow/core/framework:metrics.h",
         "//tensorflow/core/framework:model.h",
         "//tensorflow/core/framework:op_segment.h",
@@ -2282,6 +2283,7 @@ tf_cuda_library(
         "//tensorflow/core/util:stats_calculator_portable",
         "//tensorflow/core/util:tensor_format",
         "//tensorflow/compiler/jit:common",
+        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init",
     ] + if_static(
         extra_deps = ["@com_google_protobuf//:protobuf"],
         otherwise = ["@com_google_protobuf//:protobuf_headers"],

@@ -41,13 +41,15 @@ void Device::Sync(const DoneCallback& done) { done(Sync()); }
 // static
 DeviceAttributes Device::BuildDeviceAttributes(
     const string& name, DeviceType device, Bytes memory_limit,
-    const DeviceLocality& locality, const string& physical_device_desc) {
+    const DeviceLocality& locality, const string& physical_device_desc,
+    DeviceType subdevice) {
   DeviceAttributes da;
   da.set_name(name);
   do {
     da.set_incarnation(random::New64());
   } while (da.incarnation() == 0);  // This proto field must not be zero
   da.set_device_type(device.type());
+  da.set_subdevice_type(subdevice.type());
   da.set_memory_limit(memory_limit.value());
   *da.mutable_locality() = locality;
   da.set_physical_device_desc(physical_device_desc);

@@ -40,6 +40,7 @@ import sys as _sys
 
 from tensorflow.python.tools import module_util as _module_util
 from tensorflow.python.util.lazy_loader import LazyLoader as _LazyLoader
+from tensorflow.python.eager import context
 
 # Make sure code inside the TensorFlow codebase can use tf2.enabled() at import.
 _os.environ['TF2_BEHAVIOR'] = '1'
@@ -145,6 +146,8 @@ if _running_from_pip_package():
     _plugin_dir = _os.path.join(_s, 'tensorflow-plugins')
     if _fi.file_exists(_plugin_dir):
       _ll.load_library(_plugin_dir)
+      # Reinitialized physical devices list after plugin registration
+      context.context().reinitialize_physical_devices()
 
 # Add module aliases
 if hasattr(_current_module, 'keras'):

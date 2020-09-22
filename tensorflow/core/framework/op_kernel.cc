@@ -25,6 +25,7 @@ limitations under the License.
 
 #include "absl/base/call_once.h"
 #include "absl/strings/match.h"
+#include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/framework/allocation_description.pb.h"
 #include "tensorflow/core/framework/attr_value.pb.h"
 #include "tensorflow/core/framework/attr_value_util.h"
@@ -81,11 +82,11 @@ Status MatchSignatureHelper(const DataTypeSlice expected_inputs,
   }
 
   if (signature_mismatch) {
-    return errors::InvalidArgument(
-        "Signature mismatch, have: ", DataTypeSliceString(inputs), "->",
-        DataTypeSliceString(outputs),
-        " expected: ", DataTypeSliceString(expected_inputs), "->",
-        DataTypeSliceString(expected_outputs));
+    return errors::InvalidArgument("Signature mismatch, have: ",
+                                   DataTypeSliceString(inputs), "->",
+                                   DataTypeSliceString(outputs), " expected: ",
+                                   DataTypeSliceString(expected_inputs), "->",
+                                   DataTypeSliceString(expected_outputs));
   }
   return Status::OK();
 }
@@ -659,8 +660,8 @@ Status OpKernelContext::allocate_output(int index, const TensorShape& shape,
   }
   if (index >= num_outputs()) {
     return errors::Internal("allocate_output with bad index=", index,
-                            " num_outputs=", num_outputs(),
-                            " kernel=", params_->op_kernel->name());
+                            " num_outputs=", num_outputs(), " kernel=",
+                            params_->op_kernel->name());
   }
   bool forward_expected =
       (params_->forward_from_array != nullptr && index >= 0 &&
@@ -736,20 +737,20 @@ Status OpKernelContext::allocate_output(int index, const TensorShape& shape,
   }
   if (index >= num_outputs()) {
     return errors::Internal("allocate_output with bad index=", index,
-                            " num_outputs=", outputs_.size(),
-                            " kernel=", params_->op_kernel->name());
+                            " num_outputs=", outputs_.size(), " kernel=",
+                            params_->op_kernel->name());
   }
   const DataType type = params_->op_kernel->output_type(index);
   if (IsRefType(type)) {
     return errors::Internal("allocate_output with ref type. index=", index,
-                            " type=", type,
-                            " kernel=", params_->op_kernel->name());
+                            " type=", type, " kernel=",
+                            params_->op_kernel->name());
   }
   if (mutable_output(index) != nullptr) {
     return errors::Internal("allocate_output on same index multiple times.",
-                            " index = ", index,
-                            " mutable_output(index) = ", mutable_output(index),
-                            " kernel=", params_->op_kernel->name());
+                            " index = ", index, " mutable_output(index) = ",
+                            mutable_output(index), " kernel=",
+                            params_->op_kernel->name());
   }
   if (attr.scope_id > 0) {
     maybe_initialize_scope_id_set();
@@ -1246,9 +1247,9 @@ static KernelRegistry* GlobalKernelRegistryTyped() {
 }
 
 static string Key(StringPiece op_type, const DeviceType& device_type,
-                  StringPiece label) {
+                  StringPiece subdevice_type, StringPiece label) {
   return strings::StrCat(op_type, ":", DeviceTypeString(device_type), ":",
-                         label);
+                         subdevice_type, ":", label);
 }
 
 namespace kernel_factory {
@@ -1256,9 +1257,11 @@ namespace kernel_factory {
 void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
                                      StringPiece kernel_class_name,
                                      std::unique_ptr<OpKernelFactory> factory) {
+  // for those static registered kernels, subdevice type is the same as the
+  // device type since they are the kernels registered in proper.
   const string key =
       Key(kernel_def->op(), DeviceType(kernel_def->device_type()),
-          kernel_def->label());
+          kernel_def->device_type(), kernel_def->label());
 
   // To avoid calling LoadDynamicKernels DO NOT CALL GlobalKernelRegistryTyped
   // here.
@@ -1267,6 +1270,24 @@ void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
   // before some file libraries can initialize, which in turn crashes the
   // program flakily. Until we get rid of static initializers in kernel
   // registration mechanism, we have this workaround here.
+  auto global_registry =
+      reinterpret_cast<KernelRegistry*>(GlobalKernelRegistry());
+  mutex_lock l(global_registry->mu);
+  global_registry->registry.emplace(
+      key,
+      KernelRegistration(*kernel_def, kernel_class_name, std::move(factory)));
+  delete kernel_def;
+}
+
+void OpKernelRegistrar::Register(const KernelDef* kernel_def,
+                                 StringPiece kernel_class_name,
+                                 std::unique_ptr<OpKernelFactory> factory) {
+  // OpKernelRegistrar::Register is intended to be used by Kernel C API for
+  // dynamic kernel registeration. subdevice type is registered from plugin.
+  const string key =
+      Key(kernel_def->op(), DeviceType(kernel_def->device_type()),
+          kernel_def->subdevice_type(), kernel_def->label());
+
   auto global_registry =
       reinterpret_cast<KernelRegistry*>(GlobalKernelRegistry());
   mutex_lock l(global_registry->mu);
@@ -1312,8 +1333,9 @@ Status FindKernelRegistration(
   *was_attr_mismatch = false;
 
   const string& label = GetKernelLabelAttr(node_attrs);
-
-  const string key = Key(node_op, device_type, label);
+  const string& subdevice_type =
+      DeviceFactory::SubDeviceType(DeviceTypeString(device_type));
+  const string key = Key(node_op, device_type, subdevice_type, label);
   auto typed_registry = GlobalKernelRegistryTyped();
   tf_shared_lock lock(typed_registry->mu);
   auto regs = typed_registry->registry.equal_range(key);
@@ -1346,7 +1368,8 @@ Status FindKernelRegistration(
   // default kernel.
   if (*reg == nullptr &&
       !IsSymbolicExecutionDevice(device_type.type_string())) {
-    const string default_key = Key(node_op, DEVICE_DEFAULT, label);
+    const string default_key =
+        Key(node_op, DEVICE_DEFAULT, DEVICE_DEFAULT, label);
     auto regs = typed_registry->registry.equal_range(default_key);
     for (auto iter = regs.first; iter != regs.second; ++iter) {
       // If there is a kernel registered for the op and device_type,
@@ -1431,8 +1454,8 @@ Status FindKernelDef(
     // Do not print kernel registrations for other devices when using _JIT
     // devices for compilation.
     if (!absl::StrContains(device_str, "JIT")) {
-      errors::AppendToMessage(
-          &s, ".  Registered:", KernelsRegisteredForOp(node_op));
+      errors::AppendToMessage(&s, ".  Registered:",
+                              KernelsRegisteredForOp(node_op));
     }
 
     return s;
@@ -1581,8 +1604,8 @@ std::unique_ptr<OpKernel> CreateOpKernel(
   status->Update(NodeProperties::CreateFromNodeDef(
       node_def, OpRegistry::Global(), &props));
   if (!status->ok()) {
-    errors::AppendToMessage(status,
-                            " for node: ", FormatNodeDefForError(node_def));
+    errors::AppendToMessage(status, " for node: ",
+                            FormatNodeDefForError(node_def));
     return nullptr;
   }
   return CreateOpKernel(device_type, device, allocator, props,
@@ -1641,8 +1664,8 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
           &s, " (OpKernel was found, but attributes didn't match) ",
           "Requested Attributes: ", SummarizeAttrs(node_def));
     }
-    errors::AppendToMessage(
-        &s, ".  Registered:", KernelsRegisteredForOp(node_def.op()));
+    errors::AppendToMessage(&s, ".  Registered:",
+                            KernelsRegisteredForOp(node_def.op()));
     return s;
   }
 
@@ -1698,9 +1721,9 @@ Status ValidateKernelRegistrations(const OpRegistryInterface& op_registry) {
     for (const auto& host_memory_arg : kernel_def.host_memory_arg()) {
       if (!FindArgInOp(host_memory_arg, op_def.input_arg()) &&
           !FindArgInOp(host_memory_arg, op_def.output_arg())) {
-        return errors::InvalidArgument(
-            "HostMemory arg '", host_memory_arg,
-            "' not found in OpDef: ", SummarizeOpDef(op_def));
+        return errors::InvalidArgument("HostMemory arg '", host_memory_arg,
+                                       "' not found in OpDef: ",
+                                       SummarizeOpDef(op_def));
       }
     }
   }
@@ -1716,7 +1739,6 @@ template <>
 const Eigen::GpuDevice& OpKernelContext::eigen_device() const {
   return eigen_gpu_device();
 }
-
 
 void OpKernelConstruction::CtxFailure(const Status& s) {
   VLOG(1) << s;

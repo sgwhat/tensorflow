@@ -33,6 +33,7 @@ tf_cuda_library(
         "//tensorflow/core/common_runtime/gpu:gpu_id",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
+	"//tensorflow/core/common_runtime:device_factory",
     ] + select({
         ":xsmm": ["@libxsmm_archive//:xsmm_avx"],
         "//conditions:default": [],

@@ -18,13 +18,16 @@ limitations under the License.
 #include <memory>
 
 #include "tensorflow/c/c_api_internal.h"
+#include "tensorflow/c/experimental/stream_executor/stream_executor_internal.h"
 #include "tensorflow/c/tf_status_helper.h"
 #include "tensorflow/c/tf_tensor_internal.h"
+#include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/framework/kernel_def_builder.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/platform/types.h"
+#include "tensorflow/stream_executor/stream.h"
 
 // This file forms the basis of a stable ABI for third-party kernel
 // implementations. It is crucial that changes to this file are made cautiously
@@ -44,8 +47,11 @@ TF_KernelBuilder* TF_NewKernelBuilder(
     void (*compute_func)(void*, TF_OpKernelContext*),
     void (*delete_func)(void*)) {
   TF_KernelBuilder* result = new TF_KernelBuilder;
+  const char* subdevice_name =
+      ::tensorflow::DeviceFactory::SubDeviceType(device_name).c_str();
   result->cc_builder = new ::tensorflow::KernelDefBuilder(op_name);
   result->cc_builder->Device(device_name);
+  result->cc_builder->SubDevice(subdevice_name);
   result->create_function = create_func;
   result->compute_function = compute_func;
   result->delete_function = delete_func;
@@ -161,11 +167,17 @@ void TF_RegisterKernelBuilder(const char* name, TF_KernelBuilder* builder,
                               TF_Status* status) {
   using tensorflow::register_kernel::Name;
 
-  tensorflow::kernel_factory::OpKernelRegistrar(
+  tensorflow::kernel_factory::OpKernelRegistrar::Register(
       builder->cc_builder->Build(), name,
       absl::make_unique<tensorflow::KernelBuilderFactory>(builder));
-
   TF_SetStatus(status, TF_OK, "");
+}
+
+SP_Stream TF_GetStream(TF_OpKernelContext* ctx) {
+  auto* cc_ctx = reinterpret_cast<::tensorflow::OpKernelContext*>(ctx);
+  auto c_stream = static_cast<stream_executor::CStream*>(
+      cc_ctx->op_device_context()->stream()->implementation());
+  return c_stream->Handle();
 }
 
 int TF_NumInputs(TF_OpKernelContext* ctx) {

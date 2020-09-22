@@ -5964,11 +5964,10 @@ py_library(
     name = "pywrap_tensorflow",
     srcs = [
         "pywrap_tensorflow.py",
-    ] + if_static(
-        ["pywrap_dlopen_global_flags.py"],
-        # Import will fail, indicating no global dlopen flags
-        otherwise = [],
-    ),  # b/153585257
+        # modular TF need this file to load expose C API symbols
+        # in pywrap_tensorflow_internal.so
+        "pywrap_dlopen_global_flags.py",
+    ],
     srcs_version = "PY2AND3",
     deps = [":pywrap_tensorflow_internal"],
 )
@@ -6047,7 +6046,8 @@ pywrap_tensorflow_macro(
         "@ngraph_tf//:ngraph_tf",
     ]) + if_xla_available([
         "//tensorflow/compiler/aot:tfcompile_lib",
-    ]) + if_static(extra_deps = ["//tensorflow/core/platform:tensor_float_32_utils"]),
+    ]) + if_static(extra_deps = ["//tensorflow/core/platform:tensor_float_32_utils"])
+       + if_static(extra_deps = ["//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init"]),
 )
 
 # ** Targets for Windows build (start) **

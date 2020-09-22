@@ -75,6 +75,10 @@ class Device : public DeviceBase {
     return device_attributes_.device_type();
   }
 
+  const std::string& subdevice_type() const {
+    return device_attributes_.subdevice_type();
+  }
+
   // Returns an aggregation of device attributes.
   const DeviceAttributes& attributes() const override {
     return device_attributes_;
@@ -164,13 +168,23 @@ class Device : public DeviceBase {
   // Assembles the parameter components into a complete DeviceAttributes value.
   static DeviceAttributes BuildDeviceAttributes(
       const std::string& name, DeviceType device, Bytes memory_limit,
-      const DeviceLocality& locality, const std::string& physical_device_desc);
+      const DeviceLocality& locality, const std::string& physical_device_desc,
+      DeviceType sub_device);
+
+  // Assembles the parameter components into a complete DeviceAttributes value.
+  static DeviceAttributes BuildDeviceAttributes(
+      const std::string& name, DeviceType device, Bytes memory_limit,
+      const DeviceLocality& locality, const std::string& physical_device_desc) {
+    return BuildDeviceAttributes(name, device, memory_limit, locality,
+                                 physical_device_desc, device);
+  }
 
   static DeviceAttributes BuildDeviceAttributes(
       const std::string& name, DeviceType device, Bytes memory_limit,
       const DeviceLocality& locality) {
     // Pass in an empty string as physical device name.
-    return BuildDeviceAttributes(name, device, memory_limit, locality, "");
+    return BuildDeviceAttributes(name, device, memory_limit, locality, "",
+                                 device);
   }
 
   // Clears the resource manager associated with this device.

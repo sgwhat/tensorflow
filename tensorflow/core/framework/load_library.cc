@@ -16,12 +16,12 @@ limitations under the License.
 #include <memory>
 #include <unordered_set>
 
+#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_plugin_init.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/mem.h"
-
 namespace tensorflow {
 
 namespace {
@@ -88,6 +88,13 @@ Status LoadDynamicLibrary(const char* library_filename, void** result,
       TF_RETURN_IF_ERROR(OpRegistry::Global()->SetWatcher(nullptr));
 
       loaded_libs[library_filename] = library;
+
+      s = RegisterPluggableDevicePlugin(library_filename);
+      if (!s.ok()) {
+        auto message = absl::StrCat("Failed to load ", library_filename,
+                                    ": error: ", s.error_message());
+        LOG(WARNING) << message;
+      }
     }
   }
   string str;

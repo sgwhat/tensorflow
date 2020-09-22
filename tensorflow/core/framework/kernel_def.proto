@@ -40,6 +40,10 @@ message KernelDef {
   // priority is 0. The higher the priority the better. By default (i.e. if
   // this is not set), we prefer GPU kernels over CPU.
   int32 priority = 6;
+  
+  // Subtype of device this kernel runs on
+  string subdevice_type = 7;
+
 }
 
 // A collection of KernelDefs

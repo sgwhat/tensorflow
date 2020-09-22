@@ -30,6 +30,7 @@ from tensorflow.python import pywrap_tensorflow  # pylint: disable=unused-import
 from tensorflow.python.tools import module_util as _module_util
 from tensorflow.python.platform import tf_logging as _logging
 from tensorflow.python.util.lazy_loader import LazyLoader as _LazyLoader
+from tensorflow.python.eager import context
 
 # API IMPORTS PLACEHOLDER
 
@@ -155,6 +156,8 @@ if _running_from_pip_package():
     _plugin_dir = _os.path.join(_s, 'tensorflow-plugins')
     if _fi.file_exists(_plugin_dir):
       _ll.load_library(_plugin_dir)
+      # Reinitialized physical devices list after plugin registration
+      context.context().reinitialize_physical_devices()
 
 # Delete modules that should be hidden from dir().
 # Don't fail if these modules are not available.
