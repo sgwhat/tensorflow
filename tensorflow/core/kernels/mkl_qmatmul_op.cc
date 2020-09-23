@@ -139,8 +139,10 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
     OP_REQUIRES_OK(context, context->GetAttr("input_quant_mode", &mode_string));
     if (mode_string == "MIN_FIRST") {
       mode_ = QUANTIZE_MODE_MIN_FIRST;
+      printf("MIN_FIRST \n");
     } else if (mode_string == "SCALED") {
       mode_ = QUANTIZE_MODE_SCALED;
+      printf("SCALED \n");
     } else {
       context->CtxFailure(errors::InvalidArgument(
           "Quantization mode must be either MIN_FIRST or SCALED, but received ",
@@ -154,7 +156,13 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
   }
 
   void Compute(OpKernelContext* context) override {
+    std::chrono::time_point<std::chrono::high_resolution_clock>
+        compute_start_t1, set_src_weight_md_t2, extend_fwd_params_t3,
+        get_matmul_prim_t4, allocate_output_t5, check_reorder_t6,
+        get_bias_handle_t7, before_execute_t8, set_output_range_t9, end_t10;
     try {
+      compute_start_t1 = std::chrono::high_resolution_clock::now();
+
       // Input tensors
       const Tensor& src_tensor = MklGetInput(context, this->kInputIndexSrc);
       const Tensor& weight_tensor =
@@ -199,6 +207,8 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       auto input_output_fmt = MEMORY_FORMAT::nc;
       auto input_output_fmt_mkldnn = MKL_TENSOR_FORMAT_NC;
 
+      set_src_weight_md_t2 = std::chrono::high_resolution_clock::now();
+
       // If input is in MKL layout, then simply take input layout; otherwise,
       // construct input TF layout. For TF layout, although input shape
       // (src_dims) required is in MKL-DNN order, the layout is Tensorflow's
@@ -217,6 +227,8 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
                                           MEMORY_FORMAT::io);
       weight.SetUsrMem(weight_md, &weight_tensor);
 
+      extend_fwd_params_t3 = std::chrono::high_resolution_clock::now();
+
       MklDnnMatMulFwdPrimitive<float, Tinput, Tweight, Tbias, Toutput>*
           matmul_fwd = nullptr;
       memory::dims bias_dims = {static_cast<int>(bias_tensor.dim_size(0))};
@@ -227,10 +239,14 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       // Extend the basic parameters for data types and fusions.
       this->ExtendMklDnnMatMulFwdParams(context, matmul_fwd_dims);
 
+      get_matmul_prim_t4 = std::chrono::high_resolution_clock::now();
+
       // Get a MatMul fwd from primitive pool.
       matmul_fwd =
           MklDnnMatMulFwdPrimitiveFactory<float, Tinput, Tweight, Tbias,
                                           Toutput>::Get(matmul_fwd_dims, 0);
+
+      allocate_output_t5 = std::chrono::high_resolution_clock::now();
 
       // Allocate output Tensor.
       std::shared_ptr<mkldnn::inner_product_forward::primitive_desc>
@@ -240,6 +256,8 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
 
       Toutput* dst_data =
           reinterpret_cast<Toutput*>(dst_tensor->flat<Toutput>().data());
+
+      check_reorder_t6 = std::chrono::high_resolution_clock::now();
 
       // Check if src and weight data need to be reordered.
       Tinput* src_data = nullptr;
@@ -290,11 +308,15 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
             const_cast<Tweight*>(weight_tensor.flat<Tweight>().data()));
       }
 
+      get_bias_handle_t7 = std::chrono::high_resolution_clock::now();
+
       // Execute inner-product
       Tbias* bias_data = this->GetBiasHandle(context, matmul_fwd_pd,
                                              bias_tensor, weight_tensor);
+
+      before_execute_t8 = std::chrono::high_resolution_clock::now();
       matmul_fwd->Execute(src_data, weight_data, bias_data, dst_data);
-      
+
     } catch (mkldnn::error& e) {
       string error_msg = tensorflow::strings::StrCat(
           "Status: ", e.status, ", message: ", string(e.message), ", in file ",
@@ -303,7 +325,9 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
           context,
           errors::Aborted("Operation received an exception:", error_msg));
     }
-      
+
+    set_output_range_t9 = std::chrono::high_resolution_clock::now();
+
     float min_output_value;
     float max_output_value;
     if (std::is_same<Toutput, quint8>::value ||
@@ -332,6 +356,58 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       output_min->flat<float>()(0) = min_output_value;
       output_max->flat<float>()(0) = max_output_value;
     }
+
+    end_t10 = std::chrono::high_resolution_clock::now();
+
+    int get_input_data_p1 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            set_src_weight_md_t2 - compute_start_t1)
+            .count();
+    int set_src_weight_md_p2 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            extend_fwd_params_t3 - set_src_weight_md_t2)
+            .count();
+    int extend_fwd_params_p3 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            get_matmul_prim_t4 - extend_fwd_params_t3)
+            .count();
+    int get_matmul_prim_p4 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            allocate_output_t5 - get_matmul_prim_t4)
+            .count();
+    int allocate_output_p5 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            check_reorder_t6 - allocate_output_t5)
+            .count();
+    int check_reorder_p6 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            get_bias_handle_t7 - check_reorder_t6)
+            .count();
+    int get_bias_handle_p7 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            before_execute_t8 - get_bias_handle_t7)
+            .count();
+    int execute_p8 = std::chrono::duration_cast<std::chrono::microseconds>(
+                         set_output_range_t9 - before_execute_t8)
+                         .count();
+    int set_output_range_p9 =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            end_t10 - set_output_range_t9)
+            .count();
+
+    static int count = 0;
+    count++;
+    printf("number: %d\n", count);
+    printf("1:get_input_data_p1 %d \n", get_input_data_p1);
+    printf("2:set_src_weight_md_p2 %d \n", set_src_weight_md_p2);
+    printf("3:extend_fwd_params_p3 %d \n", extend_fwd_params_p3);
+    printf("4:get_matmul_prim_p4 %d \n", get_matmul_prim_p4);
+    printf("5:allocate_output_p5 %d \n", allocate_output_p5);
+    printf("6:check_reorder_p6 %d \n", check_reorder_p6);
+    printf("7:get_bias_handle_p7 %d \n", get_bias_handle_p7);
+    printf("8:execute_p8 %d \n", execute_p8);
+    printf("9:set_output_range_p9 %d \n", set_output_range_p9);
+    printf("\n");
   }
 
  protected:
@@ -396,6 +472,11 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       std::shared_ptr<mkldnn::inner_product_forward::primitive_desc>&
           mkldnn_matmul_fwd_pd,
       const Tensor& bias_tensor, const Tensor& weight_tensor) {
+    std::chrono::time_point<std::chrono::high_resolution_clock>
+        get_bias_handle_start_p7_t1, get_bias_handle_preparedata_p7_t2,
+        get_bias_handle_omp_parallel_p7_t3;
+
+    get_bias_handle_start_p7_t1 = std::chrono::high_resolution_clock::now();
     // If the bias is qint32, it means the bias is already converted offline.
     // and it can be added to matmul output directly.
     if (std::is_same<Tbias, qint32>::value) {
@@ -429,6 +510,8 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
         out_scale = (255.0 * 127.0) /
                     ((max_input - min_input) *
                      std::max(std::abs(max_weight), std::abs(min_weight)));
+        get_bias_handle_preparedata_p7_t2 =
+            std::chrono::high_resolution_clock::now();
 
 #pragma omp parallel for schedule(static)
         for (int j = 0; j < n; ++j) {
@@ -439,6 +522,23 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
           comp_bias[j] =
               ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
         }
+
+        get_bias_handle_omp_parallel_p7_t3 =
+            std::chrono::high_resolution_clock::now();
+
+        int execute_p7_prepare_data_p1 =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                get_bias_handle_preparedata_p7_t2 - get_bias_handle_start_p7_t1)
+                .count();
+        int execute_p7_omp_parallel_p2 =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                get_bias_handle_omp_parallel_p7_t3 -
+                get_bias_handle_preparedata_p7_t2)
+                .count();
+        printf("7_1:execute_p7_prepare_data_p1 %d \n",
+               execute_p7_prepare_data_p1);
+        printf("7_2:execute_p7_omp_parallel_p2 %d \n",
+               execute_p7_omp_parallel_p2);
 
         return reinterpret_cast<Tbias*>(comp_bias_);
 
@@ -518,7 +618,7 @@ class MklDnnQuantizedMatMulReluOp
                             Toutput>::ExtendMklDnnMatMulFwdParams(context,
                                                                   params);
     params.post_op_params.push_back({"relu", {1.0, 0.0, 0.0}});
-    //params.post_op_params.push_back({"gelu", {1.0, 1.0, 0.0}});
+    // params.post_op_params.push_back({"gelu", {1.0, 1.0, 0.0}});
   }
 };
 
@@ -736,8 +836,6 @@ REGISTER_KERNEL_BUILDER(
         .TypeConstraint<quint8>("Toutput")
         .Label(mkl_op_registry::kMklQuantizedOpLabel),
     MklDnnQuantizedMatMulGeluOp<CPUDevice, quint8, qint8, float, quint8>);
-
-
 
 }  // namespace tensorflow
 
