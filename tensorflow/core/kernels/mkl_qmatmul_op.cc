@@ -91,12 +91,15 @@ limitations under the License.
 // https://software.intel.com/en-us/articles/lower-numerical-precision-deep-learning-inference-and-training
 #ifdef INTEL_MKL
 
+#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/kernels/fill_functor.h"
 #include "tensorflow/core/kernels/mkl_matmul_ops_common.h"
 #include "tensorflow/core/kernels/mkl_quantized_conv_ops.h"
 #include "tensorflow/core/kernels/no_op.h"
 #include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/util/mkl_threadpool.h"
+#include "tensorflow/core/util/work_sharder.h"
 
 namespace {
 enum {
@@ -474,7 +477,8 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       const Tensor& bias_tensor, const Tensor& weight_tensor) {
     std::chrono::time_point<std::chrono::high_resolution_clock>
         get_bias_handle_start_p7_t1, get_bias_handle_preparedata_p7_t2,
-        get_bias_handle_omp_parallel_p7_t3;
+        get_bias_handle_omp_parallel_p7_t3, get_bias_reshape_weight_p7_t25,
+        get_bias_end_p7_t4;
 
     get_bias_handle_start_p7_t1 = std::chrono::high_resolution_clock::now();
     // If the bias is qint32, it means the bias is already converted offline.
@@ -523,24 +527,95 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
               ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
         }
 
+        // Eigen parallel for
+        // auto parallel_func = [&](int64 start, int64 end) {
+        //   for (int64 j = start; j < end; j++) {
+        //     int x = 0;
+        //     for (int64 i = 0; i < k; ++i) {
+        //       x += wt_buf[i * n + j];
+        //     }
+        //     comp_bias[j] =
+        //         ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
+        //   }
+        // };
+
+        // New cost function
+        // int input_bytes = k * sizeof(qint8) + sizeof(float);
+        // int output_bytes = sizeof(float);
+        // int compute_cycles = Eigen::TensorOpCost::MulCost<int>() * k +
+        //                      Eigen::TensorOpCost::AddCost<int>() * k +
+        //                      Eigen::TensorOpCost::MulCost<float>() * 2 +
+        //                      Eigen::TensorOpCost::AddCost<float>();
+
+        // const Eigen::TensorOpCost cost(input_bytes, output_bytes,
+        //                                compute_cycles);
+
+        // auto cpu_device = context->eigen_cpu_device();
+        // cpu_device.parallelFor(n, cost, parallel_func);
+
+        // Old cost function
+        // // const float kArithCost = 2.5f;
+        // // const float kMovCost = 1.0f;
+        // // float shard_cost = 4 * kArithCost + kMovCost;
+        // // const DeviceBase::CpuWorkerThreads& worker_threads =
+        // //     *(context->device()->tensorflow_cpu_worker_threads());
+        // // Shard(worker_threads.num_threads, worker_threads.workers, n,
+        // // shard_cost,
+        // //       parallel_func);
+
+        // auto weight_reshape_tensor = weight_tensor.shaped<qint8, 2>({n, k});
+        // wt_buf = static_cast<qint8*>(
+        //             const_cast<qint8*>(weight_reshape_tensor.flat<qint8>().data()));
+
+        get_bias_reshape_weight_p7_t25 =
+            std::chrono::high_resolution_clock::now();
+
+// #pragma omp parallel for schedule(static)
+//         for (int i = 0; i < n; ++i) {
+//           int x = 0;
+//           for (int j = 0; j < k; ++j) {
+//             x += wt_buf[i * k + j];
+//           }
+//           comp_bias[i] =
+//               ((bias_buf[i] * out_scale) + static_cast<float>(x * qa_amin));
+//         }
+
         get_bias_handle_omp_parallel_p7_t3 =
             std::chrono::high_resolution_clock::now();
 
-        int execute_p7_prepare_data_p1 =
+        auto return_bias = reinterpret_cast<Tbias*>(comp_bias_);
+
+        get_bias_end_p7_t4 =
+            std::chrono::high_resolution_clock::now();
+
+        int get_bias_handle_p7_prepare_data_p1 =
             std::chrono::duration_cast<std::chrono::microseconds>(
                 get_bias_handle_preparedata_p7_t2 - get_bias_handle_start_p7_t1)
                 .count();
-        int execute_p7_omp_parallel_p2 =
+        int get_bias_handle_p7_reshape_weight_p15 =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                get_bias_reshape_weight_p7_t25 -  get_bias_handle_preparedata_p7_t2)
+                .count();
+        int get_bias_handle_p7_omp_parallel_p2 =
             std::chrono::duration_cast<std::chrono::microseconds>(
                 get_bias_handle_omp_parallel_p7_t3 -
-                get_bias_handle_preparedata_p7_t2)
+                get_bias_reshape_weight_p7_t25)
                 .count();
-        printf("7_1:execute_p7_prepare_data_p1 %d \n",
-               execute_p7_prepare_data_p1);
-        printf("7_2:execute_p7_omp_parallel_p2 %d \n",
-               execute_p7_omp_parallel_p2);
+        int get_bias_handle_p7_reinterpret_p3 =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                get_bias_end_p7_t4 -
+                get_bias_handle_omp_parallel_p7_t3)
+                .count();
+        printf("7_1:get_bias_handle_p7_prepare_data_p1 %d \n",
+               get_bias_handle_p7_prepare_data_p1);
+        printf("7_15:get_bias_handle_p7_reshape_weight_p15 %d \n",
+               get_bias_handle_p7_reshape_weight_p15);
+        printf("7_2:get_bias_handle_p7_omp_parallel_p2 %d \n",
+               get_bias_handle_p7_omp_parallel_p2);
+        printf("7_3:get_bias_handle_p7_reinterpret_p3 %d \n",
+               get_bias_handle_p7_reinterpret_p3);
 
-        return reinterpret_cast<Tbias*>(comp_bias_);
+        return return_bias;
 
       } else if (mode_ == QUANTIZE_MODE_SCALED) {
         // If the bias is float and input quantize is SCALE, bias has to be
