@@ -136,6 +136,71 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
     return comp_bias_;
   }
 
+  inline bool IsWeightCompensateEmpty(OpKernelContext* context)
+      TF_LOCKS_EXCLUDED(comp_mu_) {
+    tf_shared_lock lock(comp_mu_);
+    return (weight_compensate_persistent_tensor.NumElements() == 0);
+  }
+
+  void CacheWeightCompensate(
+      OpKernelContext* context,
+      const Tensor& weight_tensor)
+      TF_LOCKS_EXCLUDED(comp_mu_) {
+    mutex_lock lock(comp_mu_);
+
+    const Tensor& weight_comp_t = *weight_compensate_persistent_tensor.AccessTensor(context);
+
+    if (weight_comp_t.NumElements() > 0) {
+      return;
+    }
+
+    int k = weight_tensor.dim_size(0);
+    int n = weight_tensor.dim_size(1);
+         
+    int* intermediate_bias = new int[n];
+    qint8* wt_buf = static_cast<qint8*>(
+        const_cast<qint8*>(weight_tensor.flat<qint8>().data()));
+
+#pragma omp parallel for schedule(static)
+    for (int j = 0; j < n; ++j) {
+      int x = 0;
+      for (int i = 0; i < k; ++i) {
+        x += wt_buf[i * n + j];
+      }
+      intermediate_bias[j] = x;
+    }
+
+    TensorShape weight_comp_shape;
+    weight_comp_shape.AddDim(n);
+
+    // BufferBase weight_comp_buffer = static_cast<void*>(comp_bias);
+    // Tensor weight_comp_calculate_tensor = Tensor(DataTypeToEnum<float>::value, weight_comp_shape);
+    // weight_comp_calculate_tensor.flat<float>().data() = comp_bias;
+
+    Tensor* weight_compensate_tensor = nullptr;
+
+    OP_REQUIRES_OK(context, context->allocate_persistent(
+                                DataTypeToEnum<int>::value, weight_comp_shape,
+                                &weight_compensate_persistent_tensor, &weight_compensate_tensor));
+
+    // weight_compensate_tensor->flat<float>().device(context->template eigen_device<Device>()) =
+    //     weight_comp_calculate_tensor.flat<float>();
+
+    CHECK_NOTNULL(weight_compensate_tensor);
+    void* weight_comp_t_data = const_cast<void*>(
+        static_cast<const void*>(weight_compensate_tensor->flat<int>().data()));
+    memcpy(weight_comp_t_data, intermediate_bias, n * sizeof(int));
+
+    delete[] intermediate_bias;
+  }
+
+  int* GetCachedWeightCompensate(OpKernelContext* context)
+      TF_LOCKS_EXCLUDED(comp_mu_) {
+    tf_shared_lock lock(comp_mu_);
+    Tensor& weight_comp_t = *weight_compensate_persistent_tensor.AccessTensor(context);
+    return static_cast<int*>(weight_comp_t.flat<int>().data());
+  }
+
   explicit MklDnnQuantizedMatMulOp(OpKernelConstruction* context)
       : MklDnnMatMulOpBase<Tweight, Toutput>(context) {
     string mode_string;
@@ -499,123 +564,150 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
       // compensated with B's32 = Q'a * Qw * Bf32 + Q'a * Qw * Min(Af32) * 1 *
       // Wf32.
       if (mode_ == QUANTIZE_MODE_MIN_FIRST) {
+//         int k = weight_tensor.dim_size(0);
+//         int n = weight_tensor.dim_size(1);
+//         float* comp_bias = GetCompBiasBuffer(n);
+
+//         qint8* wt_buf = static_cast<qint8*>(
+//             const_cast<qint8*>(weight_tensor.flat<qint8>().data()));
+
+//         const float* bias_buf = static_cast<float*>(
+//             const_cast<float*>(bias_tensor.flat<float>().data()));
+
+//         float qa_amin = 255 * min_input / (max_input - min_input);
+
+//         out_scale = (255.0 * 127.0) /
+//                     ((max_input - min_input) *
+//                      std::max(std::abs(max_weight), std::abs(min_weight)));
+//         get_bias_handle_preparedata_p7_t2 =
+//             std::chrono::high_resolution_clock::now();
+
+// #pragma omp parallel for schedule(static)
+//         for (int j = 0; j < n; ++j) {
+//           int x = 0;
+//           for (int i = 0; i < k; ++i) {
+//             x += wt_buf[i * n + j];
+//           }
+//           comp_bias[j] =
+//               ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
+//         }
+
+//         // Eigen parallel for
+//         // auto parallel_func = [&](int64 start, int64 end) {
+//         //   for (int64 j = start; j < end; j++) {
+//         //     int x = 0;
+//         //     for (int64 i = 0; i < k; ++i) {
+//         //       x += wt_buf[i * n + j];
+//         //     }
+//         //     comp_bias[j] =
+//         //         ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
+//         //   }
+//         // };
+
+//         // New cost function
+//         // int input_bytes = k * sizeof(qint8) + sizeof(float);
+//         // int output_bytes = sizeof(float);
+//         // int compute_cycles = Eigen::TensorOpCost::MulCost<int>() * k +
+//         //                      Eigen::TensorOpCost::AddCost<int>() * k +
+//         //                      Eigen::TensorOpCost::MulCost<float>() * 2 +
+//         //                      Eigen::TensorOpCost::AddCost<float>();
+
+//         // const Eigen::TensorOpCost cost(input_bytes, output_bytes,
+//         //                                compute_cycles);
+
+//         // auto cpu_device = context->eigen_cpu_device();
+//         // cpu_device.parallelFor(n, cost, parallel_func);
+
+//         // Old cost function
+//         // // const float kArithCost = 2.5f;
+//         // // const float kMovCost = 1.0f;
+//         // // float shard_cost = 4 * kArithCost + kMovCost;
+//         // // const DeviceBase::CpuWorkerThreads& worker_threads =
+//         // //     *(context->device()->tensorflow_cpu_worker_threads());
+//         // // Shard(worker_threads.num_threads, worker_threads.workers, n,
+//         // // shard_cost,
+//         // //       parallel_func);
+
+//         // auto weight_reshape_tensor = weight_tensor.shaped<qint8, 2>({n, k});
+//         // wt_buf = static_cast<qint8*>(
+//         //             const_cast<qint8*>(weight_reshape_tensor.flat<qint8>().data()));
+
+//         get_bias_reshape_weight_p7_t25 =
+//             std::chrono::high_resolution_clock::now();
+
+// // #pragma omp parallel for schedule(static)
+// //         for (int i = 0; i < n; ++i) {
+// //           int x = 0;
+// //           for (int j = 0; j < k; ++j) {
+// //             x += wt_buf[i * k + j];
+// //           }
+// //           comp_bias[i] =
+// //               ((bias_buf[i] * out_scale) + static_cast<float>(x * qa_amin));
+// //         }
+
+//         get_bias_handle_omp_parallel_p7_t3 =
+//             std::chrono::high_resolution_clock::now();
+
+//         auto return_bias = reinterpret_cast<Tbias*>(comp_bias_);
+
+//         get_bias_end_p7_t4 =
+//             std::chrono::high_resolution_clock::now();
+
+//         int get_bias_handle_p7_prepare_data_p1 =
+//             std::chrono::duration_cast<std::chrono::microseconds>(
+//                 get_bias_handle_preparedata_p7_t2 - get_bias_handle_start_p7_t1)
+//                 .count();
+//         int get_bias_handle_p7_reshape_weight_p15 =
+//             std::chrono::duration_cast<std::chrono::microseconds>(
+//                 get_bias_reshape_weight_p7_t25 -  get_bias_handle_preparedata_p7_t2)
+//                 .count();
+//         int get_bias_handle_p7_omp_parallel_p2 =
+//             std::chrono::duration_cast<std::chrono::microseconds>(
+//                 get_bias_handle_omp_parallel_p7_t3 -
+//                 get_bias_reshape_weight_p7_t25)
+//                 .count();
+//         int get_bias_handle_p7_reinterpret_p3 =
+//             std::chrono::duration_cast<std::chrono::microseconds>(
+//                 get_bias_end_p7_t4 -
+//                 get_bias_handle_omp_parallel_p7_t3)
+//                 .count();
+//         printf("7_1:get_bias_handle_p7_prepare_data_p1 %d \n",
+//                get_bias_handle_p7_prepare_data_p1);
+//         printf("7_15:get_bias_handle_p7_reshape_weight_p15 %d \n",
+//                get_bias_handle_p7_reshape_weight_p15);
+//         printf("7_2:get_bias_handle_p7_omp_parallel_p2 %d \n",
+//                get_bias_handle_p7_omp_parallel_p2);
+//         printf("7_3:get_bias_handle_p7_reinterpret_p3 %d \n",
+//                get_bias_handle_p7_reinterpret_p3);
+
+        if (IsWeightCompensateEmpty(context)) {
+          printf("weight intermediate cache miss \n");
+        }
+
+        CacheWeightCompensate(context, weight_tensor);
+
         int k = weight_tensor.dim_size(0);
         int n = weight_tensor.dim_size(1);
+
         float* comp_bias = GetCompBiasBuffer(n);
 
-        qint8* wt_buf = static_cast<qint8*>(
-            const_cast<qint8*>(weight_tensor.flat<qint8>().data()));
-
         const float* bias_buf = static_cast<float*>(
-            const_cast<float*>(bias_tensor.flat<float>().data()));
+              const_cast<float*>(bias_tensor.flat<float>().data()));
 
         float qa_amin = 255 * min_input / (max_input - min_input);
 
         out_scale = (255.0 * 127.0) /
-                    ((max_input - min_input) *
-                     std::max(std::abs(max_weight), std::abs(min_weight)));
-        get_bias_handle_preparedata_p7_t2 =
-            std::chrono::high_resolution_clock::now();
-
-#pragma omp parallel for schedule(static)
-        for (int j = 0; j < n; ++j) {
-          int x = 0;
-          for (int i = 0; i < k; ++i) {
-            x += wt_buf[i * n + j];
-          }
-          comp_bias[j] =
-              ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
-        }
-
-        // Eigen parallel for
-        // auto parallel_func = [&](int64 start, int64 end) {
-        //   for (int64 j = start; j < end; j++) {
-        //     int x = 0;
-        //     for (int64 i = 0; i < k; ++i) {
-        //       x += wt_buf[i * n + j];
-        //     }
-        //     comp_bias[j] =
-        //         ((bias_buf[j] * out_scale) + static_cast<float>(x * qa_amin));
-        //   }
-        // };
-
-        // New cost function
-        // int input_bytes = k * sizeof(qint8) + sizeof(float);
-        // int output_bytes = sizeof(float);
-        // int compute_cycles = Eigen::TensorOpCost::MulCost<int>() * k +
-        //                      Eigen::TensorOpCost::AddCost<int>() * k +
-        //                      Eigen::TensorOpCost::MulCost<float>() * 2 +
-        //                      Eigen::TensorOpCost::AddCost<float>();
-
-        // const Eigen::TensorOpCost cost(input_bytes, output_bytes,
-        //                                compute_cycles);
-
-        // auto cpu_device = context->eigen_cpu_device();
-        // cpu_device.parallelFor(n, cost, parallel_func);
-
-        // Old cost function
-        // // const float kArithCost = 2.5f;
-        // // const float kMovCost = 1.0f;
-        // // float shard_cost = 4 * kArithCost + kMovCost;
-        // // const DeviceBase::CpuWorkerThreads& worker_threads =
-        // //     *(context->device()->tensorflow_cpu_worker_threads());
-        // // Shard(worker_threads.num_threads, worker_threads.workers, n,
-        // // shard_cost,
-        // //       parallel_func);
-
-        // auto weight_reshape_tensor = weight_tensor.shaped<qint8, 2>({n, k});
-        // wt_buf = static_cast<qint8*>(
-        //             const_cast<qint8*>(weight_reshape_tensor.flat<qint8>().data()));
-
-        get_bias_reshape_weight_p7_t25 =
-            std::chrono::high_resolution_clock::now();
+                      ((max_input - min_input) *
+                      std::max(std::abs(max_weight), std::abs(min_weight)));
+        
+        int* intermediate_bias = GetCachedWeightCompensate(context);
 
 // #pragma omp parallel for schedule(static)
-//         for (int i = 0; i < n; ++i) {
-//           int x = 0;
-//           for (int j = 0; j < k; ++j) {
-//             x += wt_buf[i * k + j];
-//           }
-//           comp_bias[i] =
-//               ((bias_buf[i] * out_scale) + static_cast<float>(x * qa_amin));
-//         }
+        for (int j = 0; j < k; j++) {
+           comp_bias[j] = (bias_buf[j] * out_scale) + static_cast<float>(intermediate_bias[j] * qa_amin);
+        }
 
-        get_bias_handle_omp_parallel_p7_t3 =
-            std::chrono::high_resolution_clock::now();
-
-        auto return_bias = reinterpret_cast<Tbias*>(comp_bias_);
-
-        get_bias_end_p7_t4 =
-            std::chrono::high_resolution_clock::now();
-
-        int get_bias_handle_p7_prepare_data_p1 =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                get_bias_handle_preparedata_p7_t2 - get_bias_handle_start_p7_t1)
-                .count();
-        int get_bias_handle_p7_reshape_weight_p15 =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                get_bias_reshape_weight_p7_t25 -  get_bias_handle_preparedata_p7_t2)
-                .count();
-        int get_bias_handle_p7_omp_parallel_p2 =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                get_bias_handle_omp_parallel_p7_t3 -
-                get_bias_reshape_weight_p7_t25)
-                .count();
-        int get_bias_handle_p7_reinterpret_p3 =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                get_bias_end_p7_t4 -
-                get_bias_handle_omp_parallel_p7_t3)
-                .count();
-        printf("7_1:get_bias_handle_p7_prepare_data_p1 %d \n",
-               get_bias_handle_p7_prepare_data_p1);
-        printf("7_15:get_bias_handle_p7_reshape_weight_p15 %d \n",
-               get_bias_handle_p7_reshape_weight_p15);
-        printf("7_2:get_bias_handle_p7_omp_parallel_p2 %d \n",
-               get_bias_handle_p7_omp_parallel_p2);
-        printf("7_3:get_bias_handle_p7_reinterpret_p3 %d \n",
-               get_bias_handle_p7_reinterpret_p3);
-
-        return return_bias;
+        return reinterpret_cast<Tbias*>(comp_bias_);
 
       } else if (mode_ == QUANTIZE_MODE_SCALED) {
         // If the bias is float and input quantize is SCALE, bias has to be
@@ -673,6 +765,9 @@ class MklDnnQuantizedMatMulOp : public MklDnnMatMulOpBase<Tweight, Toutput> {
   float* comp_bias_ = nullptr;
 
   int mode_;
+
+  mutex comp_mu_;
+  PersistentTensor weight_compensate_persistent_tensor TF_GUARDED_BY(comp_mu_);
 };
 
 template <typename Device, typename Tinput, typename Tweight, typename Tbias,
