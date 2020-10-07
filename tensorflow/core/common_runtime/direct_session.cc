@@ -815,6 +815,13 @@ Status DirectSession::Run(const RunOptions& run_options,
              run_metadata, thread::ThreadPoolOptions());
 }
 
+inline double get_msec() {
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
+}
+
+
 Status DirectSession::Run(const RunOptions& run_options,
                           const NamedTensorList& inputs,
                           const std::vector<string>& output_names,
@@ -879,9 +886,12 @@ Status DirectSession::Run(const RunOptions& run_options,
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
 
+  double before_time = get_msec();
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata,
                                  threadpool_options));
+  double after_time = get_msec();
+  LOG(WARNING) << " --- Yimei, session time = " << (after_time - before_time);
 
   // Receive outputs.
   if (outputs) {
