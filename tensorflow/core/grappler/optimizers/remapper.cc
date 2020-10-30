@@ -59,6 +59,8 @@ namespace grappler {
 //   (1) FusedBatchNorm + <Activation>
 //   (2) FusedBatchNorm + SideInput + <Activation>
 //
+// Sigmoid + Mul -> Swish  // This fusion only work on Intel CPU.
+//
 // In all cases, the supported activation functions are Relu, Relu6, and Elu.
 //
 // Both Conv2D and MatMul implemented as Tensor contraction (on CPU), so all the
@@ -69,6 +71,7 @@ constexpr char kFusedConv2D[] = "_FusedConv2D";
 constexpr char kFusedMatMul[] = "_FusedMatMul";
 constexpr char kFusedDepthwiseConv2dNative[] = "_FusedDepthwiseConv2dNative";
 constexpr char kFusedBatchNormEx[] = "_FusedBatchNormEx";
+constexpr char kSwish[] = "_FusedSwish";
 
 constexpr char kDataFormat[] = "data_format";
 constexpr char kIsTraining[] = "is_training";
@@ -204,6 +207,18 @@ struct ContractionWithBiasAndAddActivation {
   int add = kMissingIndex;
   int port_id = 0;
   int activation = kMissingIndex;
+};
+
+// Constraction Sigmoid and Mul nodes. fuse them into Swish.
+struct ContractionWithSigmoidAndMul {
+  ContractionWithSigmoidAndMul() = default;
+  ContractionWithSigmoidAndMul(int contraction, int sigmoid, int mul, int port)
+      : contraction(contraction), sigmoid(sigmoid), mul(mul), port(port) {}
+
+  int contraction = kMissingIndex;
+  int sigmoid = kMissingIndex;
+  int mul = kMissingIndex;
+  int port = kMissingIndex;
 };
 #endif  // INTEL_MKL
 
@@ -764,6 +779,90 @@ bool FindContractionWithBiasAndAddActivation(
   *matched = pattern;
 
   return true;
+}
+
+// Helper function extracts Sigmoid and Mul to match Swish fusion patterns.
+bool HelperContractionWithSigmoidAndMul(
+    const RemapperContext& ctx, int node_index, int sigmoid_index,
+    int not_sigmoid_index, ContractionWithSigmoidAndMul*& matched) {
+  const auto* node_view = ctx.graph_view.GetNode(node_index);
+  const auto* node_def = node_view->node();
+
+  const auto& regular_fanin_sigmoid = node_view->GetRegularFanin(sigmoid_index);
+  const auto* add_node_view_sigmoid = regular_fanin_sigmoid.node_view();
+  const auto* add_node_def_sigmoid = add_node_view_sigmoid->node();
+  const auto& regular_fanin_mul = node_view->GetRegularFanin(not_sigmoid_index);
+  const auto* add_node_view_mul = regular_fanin_mul.node_view();
+  const auto* add_node_def_mul = add_node_view_mul->node();
+
+  if (HasControlFaninOrFanout(*add_node_view_sigmoid) ||
+      !HasAtMostOneFanoutAtPort0(*add_node_view_sigmoid) ||
+      !HasAtMostOneDataFanoutAtPort0(*add_node_view_sigmoid) ||
+      IsInPreserveSet(ctx, add_node_def_sigmoid) ||
+      !HaveSameDataType(node_def, add_node_def_sigmoid))
+    return false;
+
+  if (add_node_view_sigmoid->NumRegularFanins() < 1) return false;
+  const auto& sigmoid_fanin_node = add_node_view_sigmoid->GetRegularFanin(0);
+  const auto* contraction_node_view = sigmoid_fanin_node.node_view();
+  const auto* contraction_node_def = contraction_node_view->node();
+
+  const int mul_index_port =
+      node_view->GetRegularFanin(not_sigmoid_index).index();
+  const int sigmoid_index_port =
+      add_node_view_sigmoid->GetRegularFanin(0).index();
+
+  // Make sure Mul's and Sigmoid's input is same and have the same input port.
+  if (add_node_def_mul != contraction_node_def ||
+      mul_index_port != sigmoid_index_port)
+    return false;
+
+  *matched = {contraction_node_view->node_index(),
+              add_node_view_sigmoid->node_index(), node_index,
+              not_sigmoid_index};
+  return true;
+}
+
+bool FindContractionWithSigmoidAndMul(const RemapperContext& ctx,
+                                      int node_index,
+                                      ContractionWithSigmoidAndMul* matched) {
+  const auto* node_view = ctx.graph_view.GetNode(node_index);
+  // TODO(lyandy): Forward controls for patterns with control dependencies.
+  if (HasControlFaninOrFanout(*node_view) || node_view->NumRegularFanins() != 2)
+    return false;
+
+  // Root of the pattern must be an mul node.
+  const auto* node_def = node_view->node();
+  if (node_def == nullptr || !IsMul(*node_def)) return false;
+
+#ifdef ENABLE_INTEL_MKL_BFLOAT16
+  // MKL mul op only supports float and bfloat16 data types.
+  if (!HasDataType(node_def, DT_FLOAT) && !HasDataType(node_def, DT_BFLOAT16))
+    return false;
+#else
+  // MKL mul op only supports float data type.
+  if (!HasDataType(node_def, DT_FLOAT)) return false;
+#endif  // ENABLE_INTEL_MKL_BFLOAT16
+
+  const auto& regular_fanin_0 = node_view->GetRegularFanin(0);
+  const auto* add_node_view_0 = regular_fanin_0.node_view();
+  const auto* add_node_def_0 = add_node_view_0->node();
+  const auto& regular_fanin_1 = node_view->GetRegularFanin(1);
+  const auto* add_node_view_1 = regular_fanin_1.node_view();
+  const auto* add_node_def_1 = add_node_view_1->node();
+
+  if (!IsSigmoid(*add_node_def_0) && !IsSigmoid(*add_node_def_1)) return false;
+  if (IsSigmoid(*add_node_def_0) && !IsSigmoid(*add_node_def_1)) {
+    return HelperContractionWithSigmoidAndMul(ctx, node_index, 0, 1, matched);
+  }
+  if (!IsSigmoid(*add_node_def_0) && IsSigmoid(*add_node_def_1)) {
+    return HelperContractionWithSigmoidAndMul(ctx, node_index, 1, 0, matched);
+  }
+  if (IsSigmoid(*add_node_def_0) && IsSigmoid(*add_node_def_1)) {
+    return HelperContractionWithSigmoidAndMul(ctx, node_index, 0, 1, matched) ||
+           HelperContractionWithSigmoidAndMul(ctx, node_index, 1, 0, matched);
+  }
+  return false;
 }
 #endif
 
@@ -1354,6 +1453,36 @@ Status AddFusedContractionNode(
 
   return Status::OK();
 }
+
+Status AddFusedContractionNode(RemapperContext* ctx,
+                               const ContractionWithSigmoidAndMul& matched,
+                               std::vector<bool>* invalidated_nodes,
+                               std::vector<bool>* nodes_to_delete) {
+  const GraphDef* graph = ctx->graph_view.graph();
+  const NodeDef& contraction = graph->node(matched.contraction);
+  const NodeDef& sigmoid = graph->node(matched.sigmoid);
+  const NodeDef& mul = graph->node(matched.mul);
+
+  NodeDef fused_op;
+  fused_op.set_name(mul.name());
+  fused_op.set_op(kSwish);
+  fused_op.set_device(mul.device());
+  fused_op.add_input(mul.input(matched.port));  // 0: input
+
+  auto* attr = fused_op.mutable_attr();
+  auto& src_attr = mul.attr();
+  (*attr)["T"] = src_attr.at("T");
+
+  utils::Mutation* mutation = ctx->graph_view.GetMutationBuilder();
+  Status status;
+  mutation->AddNode(std::move(fused_op), &status);
+  TF_RETURN_IF_ERROR(status);
+  TF_RETURN_IF_ERROR(mutation->Apply());
+
+  (*invalidated_nodes)[matched.mul] = true;
+  (*nodes_to_delete)[matched.sigmoid] = true;
+  return Status::OK();
+}
 #endif
 
 Status AddFusedBatchNormExNode(RemapperContext* ctx,
@@ -1790,6 +1919,7 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
 #ifdef INTEL_MKL
     ContractionWithBiasAddAndAdd contract_with_bias_and_add;
     ContractionWithBiasAndAddActivation contract_with_bias_and_add_activation;
+    ContractionWithSigmoidAndMul contract_sigmoid_and_mul;
 
     if (!item.optimization_options().is_eager_mode) {
       // Remap Conv2D+BiasAdd+Add+relu into the _FusedConv2D.
@@ -1809,8 +1939,15 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
                                     &invalidated_nodes, &nodes_to_delete));
         continue;
       }
+      // Remap Mul(x, Sigmoid(x)) pattern, fuse then into the Swish(x).
+      if (FindContractionWithSigmoidAndMul(ctx, i, &contract_sigmoid_and_mul)) {
+        TF_RETURN_IF_ERROR(
+            AddFusedContractionNode(&ctx, contract_sigmoid_and_mul,
+                                    &invalidated_nodes, &nodes_to_delete));
+        continue;
+      }
     }
-#endif  //! INTEL_MKL
+#endif  // INTEL_MKL
 
     // Infer properties lazily in case they are not needed.
     if (!ctx.inferred_graph_properties && RequiresInferredShapes(ctx, i)) {

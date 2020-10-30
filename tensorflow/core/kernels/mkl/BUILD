@@ -226,6 +226,19 @@ tf_cc_test_mkl(
     ] + MKL_TEST_DEPS,
 )
 
+tf_cc_test_mkl(
+    name = "mkl_eltwise_swish_op_test",
+    size = "small",
+    srcs = ["mkl_eltwise_swish_op_test.cc"],
+    linkstatic = 1,  # Fixes dyld error on MacOS.
+    deps = [
+           ":mkl_eltwise_ops",
+           "//tensorflow/cc:math_ops",
+           "//tensorflow/core/kernels:cwise_op",
+           "//tensorflow/core:direct_session",
+    ] + MKL_TEST_DEPS,
+)
+
 tf_mkl_kernel_library(
     name = "mkl_tfconv_op",
     prefix = "mkl_tfconv",
@@ -298,7 +311,9 @@ tf_cc_test_mkl(
 tf_mkl_kernel_library(
     name = "mkl_eltwise_ops",
     prefix = "mkl_eltwise_ops",
-    deps = MKL_DEPS,
+    deps = MKL_DEPS + [
+        "//tensorflow/core/kernels:no_op",
+    ],
 )
 
 tf_mkl_kernel_library(

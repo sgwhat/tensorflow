@@ -359,6 +359,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     csinfo_.requantize = "Requantize";
     csinfo_.tanh = "Tanh";
     csinfo_.tanh_grad = "TanhGrad";
+    csinfo_.fused_swish = "_FusedSwish";
+    csinfo_.mkl_swish = "_MklSwish";
     csinfo_.reshape = "Reshape";
     csinfo_.slice = "Slice";
     csinfo_.softmax = "Softmax";
@@ -680,6 +682,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
                       mkl_op_registry::GetMklOpName(csinfo_.tanh_grad),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
 #endif  // ENABLE_MKLDNN_V1
+    rinfo_.push_back({csinfo_.fused_swish, csinfo_.mkl_swish, CopyAttrsAll,
+                      AlwaysRewrite, GetRewriteCause()});
     rinfo_.push_back({csinfo_.reshape,
                       mkl_op_registry::GetMklOpName(csinfo_.reshape),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
@@ -1006,6 +1010,8 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     string requantize;
     string tanh;
     string tanh_grad;
+    string fused_swish;
+    string mkl_swish;
     string transpose;
     string reshape;
     string slice;
@@ -3871,6 +3877,7 @@ MklLayoutRewritePass::CheckForNodeRewrite(const Node* n) const {
       n->type_string() != csinfo_.fused_conv2d &&
       n->type_string() != csinfo_.fused_depthwise_conv2d &&
       n->type_string() != csinfo_.fused_matmul &&
+      n->type_string() != csinfo_.fused_swish &&
       !mkl_op_registry::IsMklOp(mkl_op_registry::GetMklOpName(n->type_string()),
                                 T)) {
     return nullptr;
