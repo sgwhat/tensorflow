@@ -283,7 +283,8 @@ class LogicalDeviceConfiguration(
 
 @tf_export("config.PhysicalDevice")
 class PhysicalDevice(
-    collections.namedtuple("PhysicalDevice", ["name", "device_type"])):
+    collections.namedtuple("PhysicalDevice",
+                           ["name", "device_type", "subdevice_type"])):
   """Abstraction for a locally visible physical device.
 
   TensorFlow can utilize various devices such as the CPU or multiple GPUs
@@ -302,6 +303,7 @@ class PhysicalDevice(
   Fields:
     name: Unique identifier for device.
     device_type: String declaring the type of device such as "CPU" or "GPU".
+    subdevice_type: String declaring the subtype of device such as "X_GPU".
   """
   pass
 
@@ -1242,6 +1244,32 @@ class Context(object):
   def invoking_op_callbacks(self, value):
     self._thread_local_data.invoking_op_callbacks = value
 
+  def _parse_physical_devices(self, devices):
+    """Parse PhysicalDevices from a list of bytes."""
+    #  If the device string contains subdevice type string, then parse it.
+    #   e.g. '/physical_device:GPU:X_GPU:0'
+    #            -> PhysicalDevice(name='/physical_device:GPU:X_GPU:0',
+    #                              device_type='GPU', subdevice_type='X_GPU')
+    #  If the device string doesn't contains subdevice type string, subdevice
+    #  type will be the same as the device type string.
+    #   e.g. '/physical_device:CPU:0'
+    #             -> PhysicalDevice(name='/physical_device:CPU:0',
+    #                               device_type='CPU', subdevice_type='CPU')
+    physical_devices = []
+    for d in devices:
+      device_spec = d.decode()
+      if device_spec.count(":") == 3:
+        name = device_spec
+        device_type = device_spec.split(":")[1]
+        subdevice_type = device_spec.split(":")[2]
+      else:
+        name = device_spec
+        device_type = device_spec.split(":")[1]
+        subdevice_type = device_spec.split(":")[1]
+      physical_devices.append(PhysicalDevice(name, device_type,
+                                             subdevice_type))
+    return physical_devices
+
   def _initialize_physical_devices(self, reinitialize=False):
     """Get local devices visible to the system."""
     # We lazy initialize self._physical_devices since we do not want to do this
@@ -1251,9 +1279,7 @@ class Context(object):
         return
 
       devs = pywrap_tfe.TF_ListPhysicalDevices()
-      self._physical_devices = [
-          PhysicalDevice(name=d.decode(),
-                         device_type=d.decode().split(":")[1]) for d in devs]
+      self._physical_devices = self._parse_physical_devices(devs)
       self._physical_device_to_index = {
           p: i for i, p in enumerate(self._physical_devices)
       }
@@ -1265,9 +1291,8 @@ class Context(object):
 
     # Import device settings that may have been passed into the constructor
     self._import_config()
-  
+
   def reinitialize_physical_devices(self):
-    """Get local devices visible to the system."""
     # Reinitialize the physical device list after registering
     # the pluggable device.
     self._initialize_physical_devices(True)

@@ -29,6 +29,7 @@ limitations under the License.
 #include "tensorflow/core/framework/attr_value.pb.h"
 #include "tensorflow/core/framework/attr_value_util.h"
 #include "tensorflow/core/framework/device_attributes.pb.h"
+#include "tensorflow/core/framework/device_factory.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/kernel_def.pb.h"
 #include "tensorflow/core/framework/kernel_def_util.h"
@@ -1246,9 +1247,9 @@ static KernelRegistry* GlobalKernelRegistryTyped() {
 }
 
 static string Key(StringPiece op_type, const DeviceType& device_type,
-                  StringPiece label) {
+                  StringPiece subdevice_type, StringPiece label) {
   return strings::StrCat(op_type, ":", DeviceTypeString(device_type), ":",
-                         label);
+                         subdevice_type, ":", label);
 }
 
 namespace kernel_factory {
@@ -1258,7 +1259,7 @@ void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
                                      std::unique_ptr<OpKernelFactory> factory) {
   const string key =
       Key(kernel_def->op(), DeviceType(kernel_def->device_type()),
-          kernel_def->label());
+          kernel_def->subdevice_type(), kernel_def->label());
 
   // To avoid calling LoadDynamicKernels DO NOT CALL GlobalKernelRegistryTyped
   // here.
@@ -1312,8 +1313,9 @@ Status FindKernelRegistration(
   *was_attr_mismatch = false;
 
   const string& label = GetKernelLabelAttr(node_attrs);
-
-  const string key = Key(node_op, device_type, label);
+  string subdevice_type =
+      DeviceFactory::SubDeviceType(DeviceTypeString(device_type));
+  const string key = Key(node_op, device_type, subdevice_type, label);
   auto typed_registry = GlobalKernelRegistryTyped();
   tf_shared_lock lock(typed_registry->mu);
   auto regs = typed_registry->registry.equal_range(key);
@@ -1346,7 +1348,8 @@ Status FindKernelRegistration(
   // default kernel.
   if (*reg == nullptr &&
       !IsSymbolicExecutionDevice(device_type.type_string())) {
-    const string default_key = Key(node_op, DEVICE_DEFAULT, label);
+    const string default_key = Key(node_op, /*device_type*/ DEVICE_DEFAULT,
+                                   /*subdevice_type*/ "", label);
     auto regs = typed_registry->registry.equal_range(default_key);
     for (auto iter = regs.first; iter != regs.second; ++iter) {
       // If there is a kernel registered for the op and device_type,
@@ -1716,7 +1719,6 @@ template <>
 const Eigen::GpuDevice& OpKernelContext::eigen_device() const {
   return eigen_gpu_device();
 }
-
 
 void OpKernelConstruction::CtxFailure(const Status& s) {
   VLOG(1) << s;

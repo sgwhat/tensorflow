@@ -33,6 +33,7 @@ limitations under the License.
 
 #include "tensorflow/core/common_runtime/gpu/gpu_id.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
+#include "tensorflow/core/framework/device_factory.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/lib/strings/strcat.h"
@@ -151,10 +152,13 @@ DeviceProperties GetLocalGPUInfo(PlatformGpuId platform_gpu_id) {
 DeviceProperties GetDeviceInfo(const DeviceNameUtils::ParsedName& device) {
   DeviceProperties unknown;
   unknown.set_type("UNKNOWN");
+  // for first party devices, subdevice type is empty.
+  // for third party devices, subdevice type is registered from plugin.
+  const string& subdevice_type = DeviceFactory::SubDeviceType(device.type);
 
   if (device.type == "CPU") {
     return GetLocalCPUInfo();
-  } else if (device.type == "GPU") {
+  } else if (device.type == "GPU" && subdevice_type.empty()) {
     if (device.has_id) {
       TfGpuId tf_gpu_id(device.id);
       PlatformGpuId platform_gpu_id;
