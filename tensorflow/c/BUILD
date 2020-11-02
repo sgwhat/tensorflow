@@ -548,6 +548,7 @@ tf_cuda_library(
             ":tf_tensor",
             "//tensorflow/core:framework",
             "//tensorflow/core:framework_lite",
+            "//tensorflow/c/experimental/stream_executor:stream_executor",
         ],
     }),
 )
@@ -678,7 +679,10 @@ tf_cc_test(
     name = "c_api_experimental_test",
     size = "medium",
     srcs = ["c_api_experimental_test.cc"],
-    data = ["testdata/tf_record"],
+    data = [
+        "testdata/tf_record",
+        "//tensorflow/c/experimental/stream_executor/test:test_pluggable_device.so",
+    ],
     linkopts = select({
         "//tensorflow:macos": ["-headerpad_max_install_names"],
         "//conditions:default": [],
@@ -698,6 +702,7 @@ tf_cc_test(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:test",
         "//tensorflow/core:test_main",
+        "//tensorflow/core/platform:resource_loader",
         "@com_google_absl//absl/types:optional",
     ],
 )

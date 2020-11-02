@@ -1242,12 +1242,12 @@ class Context(object):
   def invoking_op_callbacks(self, value):
     self._thread_local_data.invoking_op_callbacks = value
 
-  def _initialize_physical_devices(self):
+  def _initialize_physical_devices(self, reinitialize=False):
     """Get local devices visible to the system."""
     # We lazy initialize self._physical_devices since we do not want to do this
     # the constructor since the backend may not be initialized yet.
     with self._device_lock:
-      if self._physical_devices is not None:
+      if reinitialize is False and self._physical_devices is not None:
         return
 
       devs = pywrap_tfe.TF_ListPhysicalDevices()
@@ -1265,6 +1265,12 @@ class Context(object):
 
     # Import device settings that may have been passed into the constructor
     self._import_config()
+  
+  def reinitialize_physical_devices(self):
+    """Get local devices visible to the system."""
+    # Reinitialize the physical device list after registering
+    # the pluggable device.
+    self._initialize_physical_devices(True)
 
   def list_physical_devices(self, device_type=None):
     """List local devices visible to the system.
