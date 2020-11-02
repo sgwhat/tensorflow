@@ -745,7 +745,7 @@ port::StatusOr<std::unique_ptr<StreamExecutor>> CPlatform::GetUncachedExecutor(
   return result;
 }
 
-port::Status InitStreamExecutorPlugin(void* dso_handle) {
+port::Status InitStreamExecutorPlugin(void* dso_handle, string& device_type, string& subdevice_type) {
   tensorflow::Env* env = tensorflow::Env::Default();
 
   // Step 1: Load symbol for `TF_InitPlugin`
@@ -755,10 +755,10 @@ port::Status InitStreamExecutorPlugin(void* dso_handle) {
 
   // Step 2: Call `TF_InitPlugin`
   auto init_fn = reinterpret_cast<SEInitPluginFn>(dso_symbol);
-  return InitStreamExecutorPlugin(init_fn);
+  return InitStreamExecutorPlugin(init_fn, device_type, subdevice_type);
 }
 
-port::Status InitStreamExecutorPlugin(SEInitPluginFn init_fn) {
+port::Status InitStreamExecutorPlugin(SEInitPluginFn init_fn, string& device_type, string& subdevice_type) {
   SE_PlatformRegistrationParams params{
       SE_PLATFORM_REGISTRATION_PARAMS_STRUCT_SIZE};
   SP_Platform platform{SP_PLATFORM_STRUCT_SIZE};
@@ -818,6 +818,8 @@ port::Status InitStreamExecutorPlugin(SEInitPluginFn init_fn) {
       std::move(cplatform)));
 
   // TODO(annarev): Add pluggable device registration here.
+  device_type = platform.type;
+  subdevice_type = platform.name;
   return port::Status::OK();
 }
 }  // namespace stream_executor

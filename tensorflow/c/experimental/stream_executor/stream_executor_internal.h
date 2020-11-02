@@ -32,11 +32,11 @@ typedef void (*SEInitPluginFn)(SE_PlatformRegistrationParams* const,
                                TF_Status* const);
 
 // Registers StreamExecutor platform.
-port::Status InitStreamExecutorPlugin(void* dso_handle);
+port::Status InitStreamExecutorPlugin(void* dso_handle, string& device_type, string& subdevice_type);
 
 // Allow registering a StreamExecutor plugin using a function (used for
 // testing).
-port::Status InitStreamExecutorPlugin(SEInitPluginFn init_fn);
+port::Status InitStreamExecutorPlugin(SEInitPluginFn init_fn, string& device_type, string& subdevice_type);
 
 namespace {
 struct TFStatusDeleter {

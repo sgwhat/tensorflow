@@ -45,6 +45,7 @@ limitations under the License.
 #include "tensorflow/core/platform/strcat.h"
 #include "tensorflow/core/protobuf/config.pb.h"
 #include "tensorflow/core/protobuf/tensorflow_server.pb.h"
+#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_plugin_init.h"
 
 using tensorflow::FunctionDef;
 using tensorflow::Node;
@@ -777,6 +778,7 @@ TF_Library* TF_LoadPluggableDeviceLibrary(const char* library_filename,
           env->LoadDynamicLibrary(library_filename, &lib_handle->lib_handle);
       if (status->status.ok()) {
         // Init PluggableDevice Plugin
+        tensorflow::RegisterPluggableDevicePlugin(lib_handle->lib_handle);
       } else {
         delete lib_handle;
         return nullptr;

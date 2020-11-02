@@ -215,7 +215,8 @@ TEST(StreamExecutor, SuccessfulRegistration) {
     params->destroy_platform = destroy_platform;
     params->destroy_platform_fns = destroy_platform_fns;
   };
-  port::Status status = InitStreamExecutorPlugin(plugin_init);
+  string device_type, platform_name;
+  port::Status status = InitStreamExecutorPlugin(plugin_init, device_type, platform_name);
   TF_ASSERT_OK(status);
   port::StatusOr<Platform*> maybe_platform =
       MultiPlatformManager::PlatformWithName("MY_DEVICE");
@@ -238,8 +239,8 @@ TEST(StreamExecutor, NameNotSet) {
     params->destroy_platform = destroy_platform;
     params->destroy_platform_fns = destroy_platform_fns;
   };
-
-  port::Status status = InitStreamExecutorPlugin(plugin_init);
+  string device_type, platform_name;
+  port::Status status = InitStreamExecutorPlugin(plugin_init, device_type, platform_name);
   ASSERT_EQ(status.code(), tensorflow::error::FAILED_PRECONDITION);
   ASSERT_EQ(status.error_message(), "'name' field in SP_Platform must be set.");
 }
@@ -286,8 +287,8 @@ TEST(StreamExecutor, CreateDeviceNotSet) {
     params->destroy_platform = destroy_platform;
     params->destroy_platform_fns = destroy_platform_fns;
   };
-
-  port::Status status = InitStreamExecutorPlugin(plugin_init);
+  string device_type, platform_name;
+  port::Status status = InitStreamExecutorPlugin(plugin_init, device_type, platform_name);
   ASSERT_EQ(status.code(), tensorflow::error::FAILED_PRECONDITION);
   ASSERT_EQ(status.error_message(),
             "'create_device' field in SP_PlatformFns must be set.");
@@ -302,8 +303,9 @@ TEST(StreamExecutor, UnifiedMemoryAllocateNotSet) {
     params->destroy_platform = destroy_platform;
     params->destroy_platform_fns = destroy_platform_fns;
   };
-
-  port::Status status = InitStreamExecutorPlugin(plugin_init);
+  
+  string device_type, platform_name;
+  port::Status status = InitStreamExecutorPlugin(plugin_init, device_type, platform_name);
   ASSERT_EQ(status.code(), tensorflow::error::FAILED_PRECONDITION);
   ASSERT_EQ(
       status.error_message(),

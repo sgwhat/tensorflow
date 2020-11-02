@@ -21,6 +21,7 @@ limitations under the License.
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/mem.h"
+#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_plugin_init.h"
 
 namespace tensorflow {
 

@@ -1566,6 +1566,7 @@ filegroup(
         "//tensorflow/core/framework:tracking_allocator.h",  # only needed for tests
         "//tensorflow/core/framework:variant.h",
         "//tensorflow/core/util:framework_internal_public_hdrs",
+        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init.h",
     ],
     visibility = ["//visibility:private"],
 )
@@ -1678,6 +1679,7 @@ tf_cuda_library(
         "//tensorflow/core/util:stats_calculator_portable",
         "//tensorflow/core/util:tensor_format",
         "//tensorflow/compiler/jit:common",
+        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init",
     ] + if_static(
         extra_deps = ["@com_google_protobuf//:protobuf"],
         otherwise = ["@com_google_protobuf//:protobuf_headers"],
