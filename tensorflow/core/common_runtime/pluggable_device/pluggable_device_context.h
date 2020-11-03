@@ -67,6 +67,8 @@ class PluggableDeviceContext : public DeviceContext {
   Status ThenExecute(Device* device, se::Stream* stream,
                      std::function<void()> func) override;
 
+  bool IsPluggableDevice() override;
+
  private:
   int stream_id_;
   // The default primary stream to use for this context.
