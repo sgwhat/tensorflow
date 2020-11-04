@@ -22,8 +22,8 @@ limitations under the License.
 #include "tensorflow/compiler/xla/service/gpu/gpu_executable_run_options.h"
 #include "tensorflow/compiler/xla/service/platform_util.h"
 #include "tensorflow/compiler/xla/util.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_host_allocator.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_mem_allocator.h"
+#include "tensorflow/core/common_runtime/device_common/device_host_allocator.h"
+#include "tensorflow/core/common_runtime/device_common/device_mem_allocator.h"
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow/stream_executor/tf_allocator_adapter.h"
 
@@ -100,7 +100,7 @@ StatusOr<std::unique_ptr<se::MultiDeviceAdapter>> CreateBFCAllocator(
     se::StreamExecutor* executor = local_device->executor();
     int device_ordinal = executor->device_ordinal();
     auto sub_allocator = absl::make_unique<tensorflow::GPUMemAllocator>(
-        executor, tensorflow::PlatformGpuId(device_ordinal),
+        executor, tensorflow::PlatformDeviceId(device_ordinal),
         /*use_unified_memory=*/enable_unified_memory,
         /*alloc_visitors=*/std::vector<tensorflow::SubAllocator::Visitor>(),
         /*free_visitors=*/std::vector<tensorflow::SubAllocator::Visitor>());

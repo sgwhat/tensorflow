@@ -17,7 +17,6 @@ limitations under the License.
 
 #define EIGEN_USE_THREADS
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
@@ -27,8 +26,9 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/kernels/gpu_device_array.h"
 #include "tensorflow/core/kernels/split_lib_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
@@ -322,7 +322,6 @@ class SplitOpGPU : public SplitOpBase<GPUDevice, T> {
 };
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-
 #define REGISTER_SPLIT(type)                             \
   REGISTER_KERNEL_BUILDER(Name("Split")                  \
                               .Device(DEVICE_CPU)        \
@@ -350,6 +349,5 @@ TF_CALL_COMPLEX_TYPES(REGISTER_GPU);
 #undef REGISTER_GPU
 
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-
 
 }  // end namespace tensorflow

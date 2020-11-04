@@ -21,9 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "third_party/gpus/cuda/include/cublas_v2.h"
-#include "third_party/gpus/cuda/include/cusolverDn.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/blocking_counter.h"
@@ -34,6 +32,8 @@
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/stream_executor/cuda/cuda_activation.h"
+#include "third_party/gpus/cuda/include/cublas_v2.h"
+#include "third_party/gpus/cuda/include/cusolverDn.h"
 
 // The CUDA cublas_api.h API contains const-correctness errors. Instead of
 // casting away constness on our data, we instead reinterpret the CuBLAS

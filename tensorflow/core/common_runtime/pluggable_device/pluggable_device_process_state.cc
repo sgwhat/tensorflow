@@ -19,10 +19,10 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_bfc_allocator.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_manager.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_utils.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_init.h"
 #include "tensorflow/core/common_runtime/pool_allocator.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
@@ -56,26 +56,23 @@ PluggableDeviceProcessState::PluggableDeviceProcessState(
 }
 
 int PluggableDeviceProcessState::BusIdForPluggableDevice(
-    TfPluggableDeviceId tf_device_id) {
+    TfDeviceId tf_device_id) {
   // Return the NUMA node accociated with the PluggableDevice's StreamExecutor.
   se::Platform* platform = PluggableDeviceMachineManager(platform_name_);
   se::StreamExecutor* se =
-      PluggableDeviceIdUtil::ExecutorForTfPluggableDeviceId(platform,
-                                                            tf_device_id)
-          .ValueOrDie();
+      DeviceIdUtil::ExecutorForTfDeviceId(platform, tf_device_id).ValueOrDie();
   int numa_node = se->GetDeviceDescription().numa_node();
   // bus_id must be non-negative. If the numa_node is unknown, use 0
   return numa_node >= 0 ? numa_node : 0;
 }
 
 Allocator* PluggableDeviceProcessState::GetPluggableDeviceAllocator(
-    const GPUOptions& options, TfPluggableDeviceId tf_device_id,
-    size_t total_bytes) {
+    const GPUOptions& options, TfDeviceId tf_device_id, size_t total_bytes) {
   CHECK(process_state_);
   const string& allocator_type = options.allocator_type();
   se::Platform* platform = PluggableDeviceMachineManager(platform_name_);
   mutex_lock lock(mu_);
-  PluggableDeviceIdUtil::CheckValidTfPluggableDeviceId(
+  DeviceIdUtil::CheckValidTfDeviceId(
       PluggableDeviceMachineManager(platform_name_), tf_device_id);
 
   if (tf_device_id.value() >=
@@ -91,9 +88,9 @@ Allocator* PluggableDeviceProcessState::GetPluggableDeviceAllocator(
       return nullptr;
     }
 
-    PlatformPluggableDeviceId platform_device_id;
-    TF_CHECK_OK(PluggableDeviceIdManager::TfToPlatformPluggableDeviceId(
-        tf_device_id, &platform_device_id));
+    PlatformDeviceId platform_device_id;
+    TF_CHECK_OK(DeviceIdManager::TfToPlatformDeviceId(tf_device_id,
+                                                      &platform_device_id));
 
     int bus_id = BusIdForPluggableDevice(tf_device_id);
     DCHECK_GE(bus_id, 0);
@@ -101,15 +98,13 @@ Allocator* PluggableDeviceProcessState::GetPluggableDeviceAllocator(
       pluggable_device_visitors_.push_back({});
     }
 
-    PluggableDeviceMemAllocator* sub_allocator =
-        new PluggableDeviceMemAllocator(
-            PluggableDeviceIdUtil::ExecutorForPlatformPluggableDeviceId(
-                platform, platform_device_id)
-                .ValueOrDie(),
-            platform_device_id,
-            (options.per_process_gpu_memory_fraction() > 1.0 ||
-             options.experimental().use_unified_memory()),
-            pluggable_device_visitors_[bus_id], {});
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform, platform_device_id)
+            .ValueOrDie(),
+        platform_device_id,
+        (options.per_process_gpu_memory_fraction() > 1.0 ||
+         options.experimental().use_unified_memory()),
+        pluggable_device_visitors_[bus_id], {});
 
     PluggableDeviceBFCAllocator* device_bfc_allocator =
         new PluggableDeviceBFCAllocator(
@@ -147,10 +142,10 @@ Allocator* PluggableDeviceProcessState::GetPluggableDeviceAllocator(
 }
 
 SharedCounter* PluggableDeviceProcessState::PluggableDeviceAllocatorCounter(
-    TfPluggableDeviceId tf_device_id) {
+    TfDeviceId tf_device_id) {
   DCHECK(process_state_);
   se::Platform* platform = PluggableDeviceMachineManager(platform_name_);
-  PluggableDeviceIdUtil::CheckValidTfPluggableDeviceId(platform, tf_device_id);
+  DeviceIdUtil::CheckValidTfDeviceId(platform, tf_device_id);
   mutex_lock l(mu_);
   if (tf_device_id.value() >=
       static_cast<int64>(pluggable_device_allocators_.size())) {

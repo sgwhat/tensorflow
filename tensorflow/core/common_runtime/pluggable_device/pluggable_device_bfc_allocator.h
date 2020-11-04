@@ -22,7 +22,7 @@ limitations under the License.
 #include <vector>
 
 #include "tensorflow/core/common_runtime/bfc_allocator.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_mem_allocator.h"
+#include "tensorflow/core/common_runtime/device_common/device_mem_allocator.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/protobuf/config.pb.h"
@@ -33,9 +33,9 @@ namespace tensorflow {
 // coalescing' algorithm
 class PluggableDeviceBFCAllocator : public BFCAllocator {
  public:
-  PluggableDeviceBFCAllocator(PluggableDeviceMemAllocator* sub_allocator,
+  PluggableDeviceBFCAllocator(DeviceMemAllocator* sub_allocator,
                               size_t total_memory, const string& name);
-  PluggableDeviceBFCAllocator(PluggableDeviceMemAllocator* sub_allocator,
+  PluggableDeviceBFCAllocator(DeviceMemAllocator* sub_allocator,
                               size_t total_memory,
                               const GPUOptions& gpu_options,
                               const string& name);

@@ -1125,17 +1125,17 @@ cc_library(
 # -----------------------------------------------------------------------------
 # Libraries with GPU facilities that are useful for writing kernels.
 cc_library(
-    name = "gpu_lib",
+    name = "device_lib",
     visibility = ["//visibility:public"],
     deps = [
-        "//tensorflow/core/common_runtime/gpu:gpu_lib",
+        "//tensorflow/core/common_runtime/device_common:device_lib",
     ],
 )
 
 alias(
-    name = "gpu_headers_lib",
+    name = "device_headers_lib",
     actual =
-        "//tensorflow/core/common_runtime/gpu:gpu_headers_lib",
+        "//tensorflow/core/common_runtime/device_common:device_headers_lib",
     visibility = ["//visibility:public"],
 )
 
@@ -1554,6 +1554,7 @@ filegroup(
 filegroup(
     name = "framework_internal_public_headers",
     srcs = [
+        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init.h",
         "//tensorflow/core/framework:metrics.h",
         "//tensorflow/core/framework:model.h",
         "//tensorflow/core/framework:op_segment.h",
@@ -1566,7 +1567,6 @@ filegroup(
         "//tensorflow/core/framework:tracking_allocator.h",  # only needed for tests
         "//tensorflow/core/framework:variant.h",
         "//tensorflow/core/util:framework_internal_public_hdrs",
-        "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_plugin_init.h",
     ],
     visibility = ["//visibility:private"],
 )
@@ -2034,10 +2034,10 @@ tf_cc_tests_gpu(
     deps = [
         ":core_cpu",
         ":core_cpu_internal",
+        ":device_id",
         ":direct_session",
         ":framework",
         ":framework_internal",
-        ":gpu_id",
         ":gpu_runtime",
         ":lib",
         ":lib_internal",

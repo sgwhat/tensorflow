@@ -22,7 +22,6 @@ limitations under the License.
 #include <functional>
 #include <string>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -34,9 +33,10 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/platform/stream_executor.h"
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 

@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_COMMON_RUNTIME_GPU_GPU_EVENT_MGR_H_
-#define TENSORFLOW_CORE_COMMON_RUNTIME_GPU_GPU_EVENT_MGR_H_
+#ifndef TENSORFLOW_CORE_COMMON_RUNTIME_DEVICE_COMMON_DEVICE_EVENT_MGR_H_
+#define TENSORFLOW_CORE_COMMON_RUNTIME_DEVICE_COMMON_DEVICE_EVENT_MGR_H_
 
 #include <deque>
 #include <vector>
@@ -49,13 +49,13 @@ class GPUOptions;
 //      WARN_IF_IN_EVENT_MGR_THREAD;
 //      if (params->status.ok()) { ...
 //
-namespace gpu_event_mgr {
+namespace device_event_mgr {
 // Logs a stack trace if current execution thread belongs to this EventMgr
 // object.  If f is not nullptr, executes instead of  logging the stack trace.
 // trace.
 void WarnIfInCallback(std::function<void()> f);
-}  // namespace gpu_event_mgr
-#define WARN_IF_IN_EVENT_MGR_THREAD gpu_event_mgr::WarnIfInCallback(nullptr)
+}  // namespace device_event_mgr
+#define WARN_IF_IN_EVENT_MGR_THREAD device_event_mgr::WarnIfInCallback(nullptr)
 
 // An object to keep track of pending Events in the StreamExecutor streams
 // and associated Tensors that cannot safely be deleted until the associated
@@ -158,4 +158,4 @@ class EventMgrFactory {
 };
 
 }  // namespace tensorflow
-#endif  // TENSORFLOW_CORE_COMMON_RUNTIME_GPU_GPU_EVENT_MGR_H_
+#endif  // TENSORFLOW_CORE_COMMON_RUNTIME_DEVICE_COMMON_DEVICE_EVENT_MGR_H_

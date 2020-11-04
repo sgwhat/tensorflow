@@ -25,12 +25,11 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_utils.h"
 #include "tensorflow/core/common_runtime/gpu_device_context.h"
 #include "tensorflow/core/common_runtime/local_device.h"
 #include "tensorflow/core/common_runtime/scoped_allocator_mgr.h"
@@ -45,6 +44,7 @@ limitations under the License.
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/public/session_options.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 namespace tensorflow {
 class GPUKernelTracker;
@@ -53,7 +53,7 @@ class BaseGPUDevice : public LocalDevice {
  public:
   BaseGPUDevice(const SessionOptions& options, const std::string& name,
                 Bytes memory_limit, const DeviceLocality& locality,
-                TfGpuId tf_gpu_id, const std::string& physical_device_desc,
+                TfDeviceId tf_gpu_id, const std::string& physical_device_desc,
                 Allocator* gpu_allocator, Allocator* cpu_allocator,
                 bool sync_every_op);
 
@@ -87,8 +87,9 @@ class BaseGPUDevice : public LocalDevice {
   // Returns the platform GPU id of this device within the native driver system;
   // e.g., for CUDA and ROCm this is the ordinal of the GPU within the system.
   int gpu_id() const {
-    PlatformGpuId platform_gpu_id;
-    TF_CHECK_OK(GpuIdManager::TfToPlatformGpuId(tf_gpu_id_, &platform_gpu_id));
+    PlatformDeviceId platform_gpu_id;
+    TF_CHECK_OK(
+        DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id_, &platform_gpu_id));
     return platform_gpu_id.value();
   }
 
@@ -146,7 +147,7 @@ class BaseGPUDevice : public LocalDevice {
   GPUDeviceContext* device_context_;
   GpuDeviceInfo* gpu_device_info_ = nullptr;
   mutex trace_mu_;
-  TfGpuId tf_gpu_id_;
+  TfDeviceId tf_gpu_id_;
   const bool sync_every_op_ = false;
   EventMgr* em_ = nullptr;
   std::unique_ptr<thread::ThreadPool> thread_pool_;
@@ -325,24 +326,25 @@ class BaseGPUDeviceFactory : public DeviceFactory {
     int32 strength;
     static const int kSameDeviceStrength;
     static const int kStreamExecutorStrength;
-    std::set<std::pair<PlatformGpuId, PlatformGpuId>> directed_links;
+    std::set<std::pair<PlatformDeviceId, PlatformDeviceId>> directed_links;
   };
 
  protected:
   // Populates *maps with interconnect maps for all local direct access
   // pathways between GPUs.
   virtual Status GetInterconnectMaps(
-      const std::vector<PlatformGpuId>& visible_gpu_order,
+      const std::vector<PlatformDeviceId>& visible_gpu_order,
       se::Platform* gpu_manager, std::vector<InterconnectMap>* maps);
 
-  struct TfGpuIdHash {
-    std::size_t operator()(const TfGpuId& id) const noexcept {
+  struct TfDeviceIdHash {
+    std::size_t operator()(const TfDeviceId& id) const noexcept {
       return std::hash<int>{}(id.value());
     }
   };
-  typedef std::unordered_map<TfGpuId, DeviceLocality, TfGpuIdHash> LocalityMap;
+  typedef std::unordered_map<TfDeviceId, DeviceLocality, TfDeviceIdHash>
+      LocalityMap;
   // Populates *localities with the DeviceLocality descriptor for
-  // every TfGpuId.
+  // every TfDeviceId.
   virtual Status GetDeviceLocalities(
       int num_tf_gpus, const std::vector<InterconnectMap>& interconnects,
       LocalityMap* localities);
@@ -352,25 +354,27 @@ class BaseGPUDeviceFactory : public DeviceFactory {
   // 'memory_limit' bytes of GPU memory to it, and adds it to the 'devices'
   // vector.
   Status CreateGPUDevice(const SessionOptions& options,
-                         const std::string& name_prefix, TfGpuId tf_gpu_id,
+                         const std::string& name_prefix, TfDeviceId tf_gpu_id,
                          int64 memory_limit, const DeviceLocality& dev_locality,
                          std::vector<std::unique_ptr<Device>>* devices);
 
   virtual std::unique_ptr<BaseGPUDevice> CreateGPUDevice(
       const SessionOptions& options, const string& name, Bytes memory_limit,
-      const DeviceLocality& dev_locality, TfGpuId tf_gpu_id,
+      const DeviceLocality& dev_locality, TfDeviceId tf_gpu_id,
       const string& physical_device_desc, Allocator* gpu_allocator,
       Allocator* cpu_allocator) = 0;
 
-  Status EnablePeerAccess(const std::vector<PlatformGpuId>& visible_gpu_order);
+  Status EnablePeerAccess(
+      const std::vector<PlatformDeviceId>& visible_gpu_order);
 
   // Returns into 'ids' the list of valid platform GPU ids, in the order that
   // they should map to TF GPU ids "/device:GPU:0", "/device:GPU:1", etc,
   // based upon 'visible_gpu_order' which was generated by parsing
   // GPUOptions::visible_device_list which is a comma-separated list of CUDA or
   // ROCm GPU ids.
-  Status GetValidDeviceIds(const std::vector<PlatformGpuId>& visible_gpu_order,
-                           std::vector<PlatformGpuId>* ids);
+  Status GetValidDeviceIds(
+      const std::vector<PlatformDeviceId>& visible_gpu_order,
+      std::vector<PlatformDeviceId>* ids);
 
   // Cache the valid device IDs if not already cached. Cached IDs are stored in
   // field cached_device_ids_. Passes {0, 1, ..., num_devices-1} to
@@ -385,7 +389,7 @@ class BaseGPUDeviceFactory : public DeviceFactory {
   // Cached device IDs, as returned by GetValidDeviceIds when every physical
   // device is visible. Cache should not be used if some devices are not
   // visible.
-  std::vector<PlatformGpuId> cached_device_ids_;
+  std::vector<PlatformDeviceId> cached_device_ids_;
 };
 
 }  // namespace tensorflow

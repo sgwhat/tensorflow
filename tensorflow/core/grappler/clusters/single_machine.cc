@@ -20,9 +20,9 @@ limitations under the License.
 
 #include "tensorflow/cc/training/queue_runner.h"
 #include "tensorflow/core/common_runtime/device.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
 #include "tensorflow/core/common_runtime/device_mgr.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
 #include "tensorflow/core/grappler/clusters/utils.h"
 #include "tensorflow/core/grappler/utils.h"
 #include "tensorflow/core/kernels/ops_util.h"
@@ -92,9 +92,10 @@ Status SingleMachine::Provision() {
         return errors::InvalidArgument(
             strings::StrCat("Not able to parse GPU device name: ", dev.name()));
       }
-      TfGpuId tf_gpu_id(parsed.id);
-      PlatformGpuId platform_gpu_id;
-      Status s = GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id);
+      TfDeviceId tf_gpu_id(parsed.id);
+      PlatformDeviceId platform_gpu_id;
+      Status s =
+          DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id);
       if (!s.ok()) {
         return errors::Unavailable("Unknown TF GPU device with id ",
                                    tf_gpu_id.value(), ": ", s.ToString());

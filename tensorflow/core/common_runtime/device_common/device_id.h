@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_COMMON_RUNTIME_GPU_GPU_ID_H_
-#define TENSORFLOW_CORE_COMMON_RUNTIME_GPU_GPU_ID_H_
+#ifndef TENSORFLOW_CORE_COMMON_RUNTIME_DEVICE_COMMON_DEVICE_ID_H_
+#define TENSORFLOW_CORE_COMMON_RUNTIME_DEVICE_COMMON_DEVICE_ID_H_
 
 #include "tensorflow/core/lib/gtl/int_type.h"
 
@@ -78,10 +78,10 @@ namespace tensorflow {
 // We create strong-typed integer classes for both TF GPU id and platform GPU id
 // to minimize programming errors and improve code readability. Except for the
 // StreamExecutor interface (as we don't change its API), whenever we need a
-// TF GPU id (or platform GPU id) we should use TfGpuId (or PlatformGpuId)
+// TF GPU id (or platform GPU id) we should use TfDeviceId (or PlatformGpuId)
 // instead of a raw integer.
-TF_LIB_GTL_DEFINE_INT_TYPE(TfGpuId, int32);
-TF_LIB_GTL_DEFINE_INT_TYPE(PlatformGpuId, int32);
+TF_LIB_GTL_DEFINE_INT_TYPE(TfDeviceId, int32);
+TF_LIB_GTL_DEFINE_INT_TYPE(PlatformDeviceId, int32);
 
 }  // namespace tensorflow
 

@@ -20,7 +20,7 @@ limitations under the License.
 #include <map>
 #include <unordered_map>
 
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
 #include "tensorflow/core/common_runtime/process_state.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
 #include "tensorflow/core/framework/allocator.h"
@@ -71,7 +71,7 @@ class PluggableDeviceProcessState {
   // REQUIRES: tf_pluggabledevice_id must be a valid id for a PluggableDevice
   // available in the current system environment.  Otherwise returns nullptr.
   virtual Allocator* GetPluggableDeviceAllocator(
-      const GPUOptions& options, TfPluggableDeviceId tf_pluggabledevice_id,
+      const GPUOptions& options, TfDeviceId tf_pluggabledevice_id,
       size_t total_bytes);
 
   int NumPluggableDeviceAllocators() {
@@ -107,11 +107,10 @@ class PluggableDeviceProcessState {
    visitor);
  */
   // Returns bus_id for the given PluggableDevice id.
-  virtual int BusIdForPluggableDevice(
-      TfPluggableDeviceId tf_pluggabledevice_id);
+  virtual int BusIdForPluggableDevice(TfDeviceId tf_pluggabledevice_id);
 
   SharedCounter* PluggableDeviceAllocatorCounter(
-      TfPluggableDeviceId tf_pluggabledevice_id);
+      TfDeviceId tf_pluggabledevice_id);
 
  protected:
   // PluggableDeviceProcessState is a singleton that should not normally be

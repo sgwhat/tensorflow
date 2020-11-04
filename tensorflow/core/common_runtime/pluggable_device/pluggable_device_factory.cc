@@ -21,12 +21,12 @@ limitations under the License.
 #include <tuple>
 #include <vector>
 
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_factory.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_manager.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_utils.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_init.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_process_state.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_util.h"
@@ -38,7 +38,7 @@ namespace {
 // Parse 'visible_device_list' into a list of platform PluggableDevice ids.
 Status ParseVisibleDeviceList(
     const string& platform_name, const string& visible_device_list,
-    std::vector<PlatformPluggableDeviceId>* visible_device_order) {
+    std::vector<PlatformDeviceId>* visible_device_order) {
   visible_device_order->clear();
   se::Platform* platform = PluggableDeviceMachineManager(platform_name);
 
@@ -58,8 +58,8 @@ Status ParseVisibleDeviceList(
       if (!strings::safe_strto32(platform_device_id_str, &platform_device_id)) {
         return errors::InvalidArgument(
             "Could not parse entry in 'visible_device_list': '",
-            platform_device_id_str, "'. visible_device_list = ",
-            visible_device_list);
+            platform_device_id_str,
+            "'. visible_device_list = ", visible_device_list);
       }
       if (platform_device_id < 0 ||
           platform_device_id >= platform->VisibleDeviceCount()) {
@@ -68,14 +68,13 @@ Status ParseVisibleDeviceList(
             platform_device_id, "' but visible device count is ",
             platform->VisibleDeviceCount());
       }
-      visible_device_order->push_back(
-          PlatformPluggableDeviceId(platform_device_id));
+      visible_device_order->push_back(PlatformDeviceId(platform_device_id));
     }
   }
 
   // Validate no repeats.
-  std::set<PlatformPluggableDeviceId> visible_device_set(
-      visible_device_order->begin(), visible_device_order->end());
+  std::set<PlatformDeviceId> visible_device_set(visible_device_order->begin(),
+                                                visible_device_order->end());
   if (visible_device_set.size() != visible_device_order->size()) {
     return errors::InvalidArgument(
         "visible_device_list contained a duplicate entry: ",
@@ -120,15 +119,15 @@ int64 MinSystemMemory(int64 available_memory) {
 // Get the memory limit for the virtual device being created on PluggableDevice
 // with 'platform_pluggabledevice_id', when that virtual device is the only
 // virtual device being created on that Plugged Device.
-Status SingleVirtualDeviceMemoryLimit(
-    const string& platform_name, const GPUOptions& gpu_options,
-    PlatformPluggableDeviceId platform_device_id, int64* memory_limit) {
+Status SingleVirtualDeviceMemoryLimit(const string& platform_name,
+                                      const GPUOptions& gpu_options,
+                                      PlatformDeviceId platform_device_id,
+                                      int64* memory_limit) {
   int64 total_memory = 0;
   int64 available_memory = 0;
   se::Platform* platform = PluggableDeviceMachineManager(platform_name);
   se::StreamExecutor* se =
-      PluggableDeviceIdUtil::ExecutorForPlatformPluggableDeviceId(
-          platform, platform_device_id)
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform, platform_device_id)
           .ValueOrDie();
   if (!se->DeviceMemoryUsage(&available_memory, &total_memory)) {
     return errors::Unknown(
@@ -219,7 +218,7 @@ Status PluggableDeviceFactory::CreateDevices(
     num_devices_to_use = iter->second;
   }
   const auto& gpu_options = options.config.gpu_options();
-  std::vector<PlatformPluggableDeviceId> visible_device_order;
+  std::vector<PlatformDeviceId> visible_device_order;
 
   if (num_devices_to_use > 0) {
     TF_RETURN_IF_ERROR(ParseVisibleDeviceList(platform_name_,
@@ -236,8 +235,7 @@ Status PluggableDeviceFactory::CreateDevices(
   int next_tf_device_id = 0;
   std::vector<int64> memory_limit_bytes;
   for (int i = 0; i < num_devices_to_use; ++i) {
-    const PlatformPluggableDeviceId platform_device_id =
-        visible_device_order[i];
+    const PlatformDeviceId platform_device_id = visible_device_order[i];
     {
       // virutal device is not supported yet
       int64 single_virtual_device_memory_limit = 0;
@@ -247,11 +245,10 @@ Status PluggableDeviceFactory::CreateDevices(
       memory_limit_bytes.push_back(single_virtual_device_memory_limit);
     }
     while (next_tf_device_id < memory_limit_bytes.size()) {
-      TfPluggableDeviceId tf_device_id(next_tf_device_id);
+      TfDeviceId tf_device_id(next_tf_device_id);
       ++next_tf_device_id;
-      TF_RETURN_IF_ERROR(
-          PluggableDeviceIdManager::InsertTfPlatformPluggableDeviceIdPair(
-              tf_device_id, platform_device_id));
+      TF_RETURN_IF_ERROR(DeviceIdManager::InsertTfPlatformDeviceIdPair(
+          tf_device_id, platform_device_id));
     }
   }
   const int num_tf_devices = next_tf_device_id;
@@ -262,7 +259,7 @@ Status PluggableDeviceFactory::CreateDevices(
   // Build the PluggableDevic
   CHECK_EQ(next_tf_device_id, memory_limit_bytes.size());
   for (int di = 0; di < num_tf_devices; ++di) {
-    TfPluggableDeviceId tf_device_id(di);
+    TfDeviceId tf_device_id(di);
     int64 bytes = memory_limit_bytes[di];
     TF_RETURN_IF_ERROR(CreatePluggableDevice(options, name_prefix, tf_device_id,
                                              bytes, device_localities[di],
@@ -270,16 +267,16 @@ Status PluggableDeviceFactory::CreateDevices(
   }
 }
 
-static string GetShortDeviceDescription(
-    PlatformPluggableDeviceId platform_device_id,
-    const se::DeviceDescription& desc) {
-  return strings::StrCat("device: ", platform_device_id.value(), ", name: ",
-                         desc.name(), ", pci bus id: ", desc.pci_bus_id());
+static string GetShortDeviceDescription(PlatformDeviceId platform_device_id,
+                                        const se::DeviceDescription& desc) {
+  return strings::StrCat("device: ", platform_device_id.value(),
+                         ", name: ", desc.name(),
+                         ", pci bus id: ", desc.pci_bus_id());
 }
 
 Status PluggableDeviceFactory::CreatePluggableDevice(
     const SessionOptions& options, const string& name_prefix,
-    TfPluggableDeviceId tf_device_id, int64 memory_limit,
+    TfDeviceId tf_device_id, int64 memory_limit,
     const DeviceLocality& dev_locality,
     std::vector<std::unique_ptr<Device>>* devices) {
   CHECK_GE(tf_device_id.value(), 0);
@@ -287,10 +284,10 @@ Status PluggableDeviceFactory::CreatePluggableDevice(
       name_prefix, "/device:", device_type_, ":", tf_device_id.value());
 
   se::Platform* platform = PluggableDeviceMachineManager(platform_name_);
-  PluggableDeviceIdUtil::CheckValidTfPluggableDeviceId(platform, tf_device_id);
-  PlatformPluggableDeviceId platform_device_id;
-  TF_RETURN_IF_ERROR(PluggableDeviceIdManager::TfToPlatformPluggableDeviceId(
-      tf_device_id, &platform_device_id));
+  DeviceIdUtil::CheckValidTfDeviceId(platform, tf_device_id);
+  PlatformDeviceId platform_device_id;
+  TF_RETURN_IF_ERROR(
+      DeviceIdManager::TfToPlatformDeviceId(tf_device_id, &platform_device_id));
   int numa_node = dev_locality.numa_node();
 
   auto desc_status = platform->DescriptionForDevice(platform_device_id.value());
@@ -336,14 +333,14 @@ Status PluggableDeviceFactory::CreatePluggableDevice(
 
 Status PluggableDeviceFactory::GetDeviceLocalities(
     int num_tf_devices, std::vector<DeviceLocality>* device_localities) {
-  std::vector<TfPluggableDeviceId> all_tf_device_ids;
+  std::vector<TfDeviceId> all_tf_device_ids;
   all_tf_device_ids.reserve(num_tf_devices);
   for (int i = 0; i < num_tf_devices; ++i) {
-    all_tf_device_ids.push_back(TfPluggableDeviceId(i));
+    all_tf_device_ids.push_back(TfDeviceId(i));
   }
-  for (TfPluggableDeviceId tf_device_id : all_tf_device_ids) {
-    PlatformPluggableDeviceId platform_device_id;
-    TF_RETURN_IF_ERROR(PluggableDeviceIdManager::TfToPlatformPluggableDeviceId(
+  for (TfDeviceId tf_device_id : all_tf_device_ids) {
+    PlatformDeviceId platform_device_id;
+    TF_RETURN_IF_ERROR(DeviceIdManager::TfToPlatformDeviceId(
         tf_device_id, &platform_device_id));
     // Get Plugged device bus_id from its reported NUMA affinity. Because device
     // are virtualized in some environment, we can't just use the Device id.

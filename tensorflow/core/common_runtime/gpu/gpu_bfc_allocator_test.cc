@@ -21,8 +21,8 @@ limitations under the License.
 #include <algorithm>
 #include <vector>
 
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_utils.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_init.h"
 #include "tensorflow/core/framework/typed_allocator.h"
 #include "tensorflow/core/lib/core/threadpool.h"
@@ -53,9 +53,9 @@ static void CheckStats(Allocator* a, int64 num_allocs, int64 bytes_in_use,
 }
 
 TEST(GPUBFCAllocatorTest, NoDups) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   CheckStats(&a, 0, 0, 0, 0);
@@ -86,9 +86,9 @@ TEST(GPUBFCAllocatorTest, NoDups) {
 }
 
 TEST(GPUBFCAllocatorTest, AllocationsAndDeallocations) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   // Allocate 256 raw pointers of sizes between 100 bytes and about
@@ -148,9 +148,9 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocations) {
 }
 
 TEST(GPUBFCAllocatorTest, ExerciseCoalescing) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   CheckStats(&a, 0, 0, 0, 0);
@@ -187,9 +187,9 @@ TEST(GPUBFCAllocatorTest, ExerciseCoalescing) {
 }
 
 TEST(GPUBFCAllocatorTest, AllocateZeroBufSize) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   float* ptr = TypedAllocator::Allocate<float>(&a, 0, {});
@@ -197,18 +197,18 @@ TEST(GPUBFCAllocatorTest, AllocateZeroBufSize) {
 }
 
 TEST(GPUBFCAllocatorTest, TracksSizes) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   EXPECT_EQ(true, a.TracksAllocationSizes());
 }
 
 TEST(GPUBFCAllocatorTest, AllocatedVsRequested) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   float* t1 = TypedAllocator::Allocate<float>(&a, 1, {});
@@ -218,9 +218,9 @@ TEST(GPUBFCAllocatorTest, AllocatedVsRequested) {
 }
 
 TEST(GPUBFCAllocatorTest, TestCustomMemoryLimit) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   // Configure a 1MiB byte limit
   GPUBFCAllocator a(sub_allocator, 1 << 20, "GPU_0_bfc");
@@ -238,9 +238,9 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocationsWithGrowth) {
   options.set_allow_growth(true);
 
   // Max of 2GiB, but starts out small.
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1LL << 31, "GPU_0_bfc");
 
@@ -304,13 +304,13 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocationsWithGrowth) {
 }
 
 TEST(GPUBFCAllocatorTest, DISABLED_AllocatorReceivesZeroMemory) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1UL << 60, "GPU_0_bfc");
-  sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator b(sub_allocator, 1UL << 60, "GPU_0_bfc");
   void* amem = a.AllocateRaw(1, 1);
@@ -320,9 +320,9 @@ TEST(GPUBFCAllocatorTest, DISABLED_AllocatorReceivesZeroMemory) {
 }
 
 static void BM_Allocation(int iters) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1uLL << 33, "GPU_0_bfc");
   // Exercise a few different allocation sizes
@@ -340,9 +340,9 @@ static void BM_Allocation(int iters) {
 BENCHMARK(BM_Allocation);
 
 static void BM_AllocationThreaded(int iters, int num_threads) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1uLL << 33, "GPU_0_bfc");
   thread::ThreadPool pool(Env::Default(), "test", num_threads);
@@ -380,9 +380,9 @@ BENCHMARK(BM_AllocationThreaded)->Arg(1)->Arg(4)->Arg(16);
 // A more complex benchmark that defers deallocation of an object for
 // "delay" allocations.
 static void BM_AllocationDelayed(int iters, int delay) {
-  PlatformGpuId platform_gpu_id(0);
-  GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+  PlatformDeviceId platform_gpu_id(0);
+  DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+      DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
       platform_gpu_id, false /*use_unified_memory*/, {}, {});
   GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
   // Exercise a few different allocation sizes
@@ -424,9 +424,9 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
   // only methods inside this class can access private members of BFCAllocator.
 
   void TestBinDebugInfo() {
-    PlatformGpuId platform_gpu_id(0);
-    GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    PlatformDeviceId platform_gpu_id(0);
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator a(sub_allocator, 1 << 30, "GPU_0_bfc");
 
@@ -524,9 +524,9 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
   }
 
   void TestLog2FloorNonZeroSlow() {
-    PlatformGpuId platform_gpu_id(0);
-    GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    PlatformDeviceId platform_gpu_id(0);
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator a(sub_allocator, 1 /* total_memory */, "GPU_0_bfc");
     EXPECT_EQ(-1, a.Log2FloorNonZeroSlow(0));
@@ -539,13 +539,13 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
   }
 
   void TestForceAllowGrowth() {
-    PlatformGpuId platform_gpu_id(0);
+    PlatformDeviceId platform_gpu_id(0);
     GPUOptions options;
     // Unset flag value uses provided option.
     unsetenv("TF_FORCE_GPU_ALLOW_GROWTH");
     options.set_allow_growth(true);
-    GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator unset_flag_allocator(sub_allocator, 1LL << 31, options,
                                          "GPU_0_bfc");
@@ -555,8 +555,8 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
     // Unparseable flag value uses provided option.
     setenv("TF_FORCE_GPU_ALLOW_GROWTH", "unparseable", 1);
     options.set_allow_growth(true);
-    sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator unparsable_flag_allocator(sub_allocator, 1LL << 31, options,
                                               "GPU_1_bfc");
@@ -567,8 +567,8 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
     // does an initial allocation of 1MiB.
     setenv("TF_FORCE_GPU_ALLOW_GROWTH", "true", 1);
     options.set_allow_growth(false);
-    sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator force_allow_growth_allocator(sub_allocator, 1LL << 31,
                                                  options, "GPU_2_bfc");
@@ -579,8 +579,8 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
     // allocated.
     setenv("TF_FORCE_GPU_ALLOW_GROWTH", "false", 1);
     options.set_allow_growth(true);
-    sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, false /*use_unified_memory*/, {}, {});
     GPUBFCAllocator force_no_allow_growth_allocator(sub_allocator, 1LL << 31,
                                                     options, "GPU_3_bfc");
@@ -593,9 +593,9 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
     options.set_allow_growth(true);
 
     // Max of 2GiB, but starts out small.
-    PlatformGpuId platform_gpu_id(0);
-    GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    PlatformDeviceId platform_gpu_id(0);
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(platform_gpu_id).ValueOrDie(),
         platform_gpu_id, /*use_unified_memory=*/false, {}, {});
     GPUBFCAllocator a(sub_allocator, 1LL << 31, options, "GPU_0_bfc");
 

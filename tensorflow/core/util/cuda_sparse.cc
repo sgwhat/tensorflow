@@ -23,9 +23,7 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "third_party/gpus/cuda/include/cusparse.h"
-#include "third_party/gpus/cuda/include/library_types.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/blocking_counter.h"
@@ -38,6 +36,8 @@ limitations under the License.
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/cuda_solvers.h"
+#include "third_party/gpus/cuda/include/cusparse.h"
+#include "third_party/gpus/cuda/include/library_types.h"
 
 // TODO(rmlarsen,penporn): Investigate using newer kernels in CUDA 10.1+.
 

@@ -18,7 +18,7 @@ limitations under the License.
 #if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) || \
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
 
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_reference.h"
 #include "tensorflow/core/kernels/gpu_device_array_gpu.h"

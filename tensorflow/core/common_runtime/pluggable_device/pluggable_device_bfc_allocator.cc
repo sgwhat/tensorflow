@@ -74,13 +74,12 @@ bool PluggableDeviceBFCAllocator::GetGarbageCollectionValue() {
 }
 
 PluggableDeviceBFCAllocator::PluggableDeviceBFCAllocator(
-    PluggableDeviceMemAllocator* sub_allocator, size_t total_memory,
-    const string& name)
+    DeviceMemAllocator* sub_allocator, size_t total_memory, const string& name)
     : PluggableDeviceBFCAllocator(sub_allocator, total_memory, GPUOptions(),
                                   name) {}
 
 PluggableDeviceBFCAllocator::PluggableDeviceBFCAllocator(
-    PluggableDeviceMemAllocator* sub_allocator, size_t total_memory,
+    DeviceMemAllocator* sub_allocator, size_t total_memory,
     const GPUOptions& gpu_options, const string& name)
     : BFCAllocator(
           sub_allocator, total_memory,

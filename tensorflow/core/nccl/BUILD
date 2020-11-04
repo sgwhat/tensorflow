@@ -45,7 +45,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "//tensorflow/core:core_cpu",
         "//tensorflow/core:framework",
-        "//tensorflow/core:gpu_headers_lib",
+        "//tensorflow/core:device_headers_lib",
         "//tensorflow/core:lib",
         "//tensorflow/core/platform:stream_executor",
         "//tensorflow/core/profiler/lib:traceme",

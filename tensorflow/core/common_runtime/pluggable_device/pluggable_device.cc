@@ -25,12 +25,12 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_factory.h"
 
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/local_device.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_context.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_manager.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_utils.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_init.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_process_state.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_util.h"
@@ -73,7 +73,7 @@ class PluggableDevice::StreamGroupFactory {
   // exist.
   // This function is thread safe
   PluggableDevice::StreamGroup* GetOrCreate(const std::string& device_type,
-                                            TfPluggableDeviceId tf_device_id,
+                                            TfDeviceId tf_device_id,
                                             int stream_group_within_device,
                                             se::StreamExecutor* executor,
                                             const GPUOptions& options) {
@@ -138,13 +138,12 @@ class PluggableDevice::StreamGroupFactory {
 PluggableDevice::PluggableDevice(
     const SessionOptions& options, const std::string& name,
     const std::string& device_type, const std::string& subdevice_type,
-    Bytes memory_limit, const DeviceLocality& locality,
-    TfPluggableDeviceId tf_device_id, const std::string& physical_device_desc,
-    Allocator* device_allocator, Allocator* cpu_allocator, bool sync_every_op)
-    : LocalDevice(options,
-                  Device::BuildDeviceAttributes(
-                      name, device_type.c_str(), memory_limit, locality,
-                      physical_device_desc)),
+    Bytes memory_limit, const DeviceLocality& locality, TfDeviceId tf_device_id,
+    const std::string& physical_device_desc, Allocator* device_allocator,
+    Allocator* cpu_allocator, bool sync_every_op)
+    : LocalDevice(options, Device::BuildDeviceAttributes(
+                               name, device_type.c_str(), memory_limit,
+                               locality, physical_device_desc)),
       device_allocator_(device_allocator),
       cpu_allocator_(cpu_allocator),
       tf_device_id_(tf_device_id),
@@ -162,8 +161,8 @@ PluggableDevice::~PluggableDevice() {
 
 Status PluggableDevice::Init(const SessionOptions& options) {
   se::Platform* platform = PluggableDeviceMachineManager(subdevice_type_);
-  auto executor_status = PluggableDeviceIdUtil::ExecutorForTfPluggableDeviceId(
-      platform, tf_device_id_);
+  auto executor_status =
+      DeviceIdUtil::ExecutorForTfDeviceId(platform, tf_device_id_);
   if (!executor_status.status().ok()) {
     return errors::Internal("Failed to get StreamExecutor for device",
                             tf_device_id_.value());
@@ -182,8 +181,8 @@ Status PluggableDevice::Init(const SessionOptions& options) {
   pluggable_device_info_->stream = stream_->compute;
   pluggable_device_info_->default_context = device_context_;
   pluggable_device_info_->event_mgr = em_;
-  PlatformPluggableDeviceId platform_pluggabledevice_id;
-  TF_RETURN_IF_ERROR(PluggableDeviceIdManager::TfToPlatformPluggableDeviceId(
+  PlatformDeviceId platform_pluggabledevice_id;
+  TF_RETURN_IF_ERROR(DeviceIdManager::TfToPlatformDeviceId(
       tf_device_id_, &platform_pluggabledevice_id));
   pluggable_device_info_->gpu_id = platform_pluggabledevice_id.value();
   set_tensorflow_gpu_device_info(pluggable_device_info_);
@@ -346,7 +345,7 @@ Status PluggableDevice::MaybeCopyTensorToPluggableDevice(
       return err;
     }
 
-    auto wrapped_done = [ to, copy, done = std::move(done) ](const Status& s) {
+    auto wrapped_done = [to, copy, done = std::move(done)](const Status& s) {
       if (s.ok()) {
         *to = std::move(*copy);
       }
@@ -383,7 +382,7 @@ Status PluggableDevice::MakeTensorFromProto(
     std::list<Notification> notifications;
     Status copy_status;
     auto copier = [this, &alloc_attrs, &notifications, &copy_status](
-        const Tensor& from, Tensor* to) {
+                      const Tensor& from, Tensor* to) {
       // Copier isn't run in a multithreaded environment, so we don't
       // have to worry about the notifications list being modified in parallel.
       notifications.emplace_back();

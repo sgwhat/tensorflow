@@ -20,8 +20,8 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
 #include "tensorflow/core/framework/device_attributes.pb.h"
 #include "tensorflow/core/public/session_options.h"
 
@@ -39,7 +39,7 @@ class PluggableDeviceFactory : public DeviceFactory {
 
  private:
   // Populates *device_localities with the DeviceLocality descriptor for
-  // every TfPluggableDeviceId
+  // every TfDeviceId
   Status GetDeviceLocalities(int num_tf_devices,
                              std::vector<DeviceLocality>* device_localities);
   // Create a PluggableDevice associated with 'tf_device_id', allocates
@@ -47,8 +47,7 @@ class PluggableDeviceFactory : public DeviceFactory {
   // it to the 'devices' vector
   Status CreatePluggableDevice(const SessionOptions& options,
                                const std::string& name_prefix,
-                               TfPluggableDeviceId tf_device_id,
-                               int64 memory_limit,
+                               TfDeviceId tf_device_id, int64 memory_limit,
                                const DeviceLocality& dev_locality,
                                std::vector<std::unique_ptr<Device>>* devices);
 

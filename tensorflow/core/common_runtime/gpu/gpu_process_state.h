@@ -21,7 +21,7 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
 #include "tensorflow/core/common_runtime/process_state.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
 #include "tensorflow/core/framework/allocator.h"
@@ -82,7 +82,7 @@ class GPUProcessState {
   // REQUIRES: tf_gpu_id must be a valid id for a BaseGPUDevice available in the
   // current system environment.  Otherwise returns nullptr.
   virtual Allocator* GetGPUAllocator(const GPUOptions& options,
-                                     TfGpuId tf_gpu_id, size_t total_bytes);
+                                     TfDeviceId tf_gpu_id, size_t total_bytes);
 
   int NumGPUAllocators() {
     mutex_lock l(mu_);
@@ -114,9 +114,9 @@ class GPUProcessState {
                                      const SubAllocator::Visitor& visitor);
 
   // Returns bus_id for the given GPU id.
-  virtual int BusIdForGPU(TfGpuId tf_gpu_id);
+  virtual int BusIdForGPU(TfDeviceId tf_gpu_id);
 
-  SharedCounter* GPUAllocatorCounter(TfGpuId tf_gpu_id);
+  SharedCounter* GPUAllocatorCounter(TfDeviceId tf_gpu_id);
 
  protected:
   // GPUProcessState is a singleton that should not normally be deleted except

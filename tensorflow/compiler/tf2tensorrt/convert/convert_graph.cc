@@ -30,8 +30,8 @@ limitations under the License.
 #include "tensorflow/compiler/tf2tensorrt/convert/logger_registry.h"
 #include "tensorflow/compiler/tf2tensorrt/convert/utils.h"
 #include "tensorflow/compiler/tf2tensorrt/segment/segment.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_process_state.h"
 #include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/framework/function.h"
@@ -48,9 +48,9 @@ limitations under the License.
 #include "tensorflow/core/lib/gtl/cleanup.h"
 #include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/platform/logging.h"
-#include "tensorflow/core/protobuf/config.pb.h"  // NOLINT
+#include "tensorflow/core/protobuf/config.pb.h"             // NOLINT
 #include "tensorflow/core/protobuf/device_properties.pb.h"  // NOLINT
-#include "tensorflow/core/protobuf/rewriter_config.pb.h"  // NOLINT
+#include "tensorflow/core/protobuf/rewriter_config.pb.h"    // NOLINT
 #include "tensorflow/core/util/device_name_utils.h"
 #include "tensorflow/tools/graph_transforms/transform_utils.h"
 
@@ -102,11 +102,12 @@ struct EdgePtrCompare {
 // TODO(laigd): instead of deciding the device here, the converter should accept
 // a device name as one of the conversion parameter so users can control on
 // which device they want to run the conversion.
-std::pair<TfGpuId, PlatformGpuId> GetFirstValidDeviceId() {
+std::pair<TfDeviceId, PlatformDeviceId> GetFirstValidDeviceId() {
   for (int tf_gpu_id_value = 0; tf_gpu_id_value < 100; ++tf_gpu_id_value) {
-    TfGpuId tf_gpu_id(tf_gpu_id_value);
-    PlatformGpuId platform_gpu_id;
-    Status s = GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id);
+    TfDeviceId tf_gpu_id(tf_gpu_id_value);
+    PlatformDeviceId platform_gpu_id;
+    Status s =
+        DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id);
     if (s.ok()) {
       VLOG(1) << "Found TF GPU " << tf_gpu_id.value() << " at cuda device "
               << platform_gpu_id.value();
@@ -114,7 +115,7 @@ std::pair<TfGpuId, PlatformGpuId> GetFirstValidDeviceId() {
     }
   }
   LOG(ERROR) << "Could not find any TF GPUs";
-  return std::make_pair(TfGpuId(-1), PlatformGpuId(-1));
+  return std::make_pair(TfDeviceId(-1), PlatformDeviceId(-1));
 }
 
 // Returns false for const nodes (we intend to drop control edges from those).
@@ -266,8 +267,8 @@ Status GetEngineInfo(const Graph* g,
     }
     info->device = DeviceNameUtils::ParsedNameToString(segment_device);
   } else {
-    TfGpuId tf_gpu_id;
-    PlatformGpuId platform_gpu_id;
+    TfDeviceId tf_gpu_id;
+    PlatformDeviceId platform_gpu_id;
     std::tie(tf_gpu_id, platform_gpu_id) = GetFirstValidDeviceId();
     if (tf_gpu_id.value() >= 0) {
       DeviceNameUtils::ParsedName parsed_name;
@@ -640,8 +641,8 @@ std::pair<int, Allocator*> GetDeviceAndAllocator(const ConversionParams& params,
   if (params.cluster == nullptr || params.cluster->GetDeviceSet() == nullptr ||
       engine.device.empty()) {
     // If device is not set, use the first found GPU device for the conversion.
-    TfGpuId tf_gpu_id;
-    PlatformGpuId platform_gpu_id;
+    TfDeviceId tf_gpu_id;
+    PlatformDeviceId platform_gpu_id;
     std::tie(tf_gpu_id, platform_gpu_id) = GetFirstValidDeviceId();
     cuda_device_id = platform_gpu_id.value();
     if (cuda_device_id >= 0) {

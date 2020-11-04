@@ -33,13 +33,12 @@ limitations under the License.
 #include <tuple>
 #include <vector>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_device.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_utils.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_init.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_process_state.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_util.h"
@@ -58,9 +57,10 @@ limitations under the License.
 #include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/lib/strings/str_util.h"
 #include "tensorflow/core/lib/strings/strcat.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA
-#include "third_party/gpus/cudnn/cudnn.h"
 #include "tensorflow/stream_executor/cuda/cuda_activation.h"
+#include "third_party/gpus/cudnn/cudnn.h"
 #elif TENSORFLOW_USE_ROCM
 #include "tensorflow/core/platform/rocm.h"
 #endif
@@ -120,7 +120,7 @@ class EigenGpuStreamDevice : public ::Eigen::StreamInterface {
   }
   ~EigenGpuStreamDevice() override {}
   void Reinitialize(OpKernelContext* context, const gpuStream_t* gpu_stream,
-                    TfGpuId tf_gpu_id, ::tensorflow::Allocator* alloc,
+                    TfDeviceId tf_gpu_id, ::tensorflow::Allocator* alloc,
                     char* scratch) {
     if (LogMemory::IsEnabled()) {
       operation_ = context->op_kernel().name() + "/EigenAllocator";
@@ -132,8 +132,9 @@ class EigenGpuStreamDevice : public ::Eigen::StreamInterface {
         reinterpret_cast<unsigned int*>(scratch + Eigen::kGpuScratchSize);
     stream_ = gpu_stream;
     allocator_ = alloc;
-    PlatformGpuId platform_gpu_id;
-    TF_CHECK_OK(GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
+    PlatformDeviceId platform_gpu_id;
+    TF_CHECK_OK(
+        DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id));
     device_prop_ = &Eigen::m_deviceProperties[platform_gpu_id.value()];
   }
 
@@ -223,7 +224,7 @@ class EigenGpuStreamDevice : public ::Eigen::StreamInterface {
   OpKernelContext* context_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(EigenGpuStreamDevice);
-};
+};  // namespace tensorflow
 
 // This factory helps to ensure that different GPU device objects that refer to
 // the same physical device and stream group id use the same stream group
@@ -236,7 +237,7 @@ class BaseGPUDevice::StreamGroupFactory {
   // {tf_gpu_id, stream_group_within_gpu}, creating it if it does not yet
   // exist.
   // This function is thread safe.
-  BaseGPUDevice::StreamGroup* GetOrCreate(TfGpuId tf_gpu_id,
+  BaseGPUDevice::StreamGroup* GetOrCreate(TfDeviceId tf_gpu_id,
                                           int stream_group_within_gpu,
                                           se::StreamExecutor* executor,
                                           const GPUOptions& options) {
@@ -378,7 +379,7 @@ class BaseGPUDevice::StreamGroupFactory {
 
 BaseGPUDevice::BaseGPUDevice(const SessionOptions& options, const string& name,
                              Bytes memory_limit, const DeviceLocality& locality,
-                             TfGpuId tf_gpu_id,
+                             TfDeviceId tf_gpu_id,
                              const string& physical_device_desc,
                              Allocator* gpu_allocator, Allocator* cpu_allocator,
                              bool sync_every_op)
@@ -422,7 +423,8 @@ Status BaseGPUDevice::InitScratchBuffers() {
 }
 
 Status BaseGPUDevice::Init(const SessionOptions& options) {
-  auto executor_status = GpuIdUtil::ExecutorForTfGpuId(tf_gpu_id_);
+  auto executor_status =
+      DeviceIdUtil::ExecutorForTfDeviceId(GPUMachineManager(), tf_gpu_id_);
   if (!executor_status.status().ok()) {
     return errors::Internal("Failed to get StreamExecutor for device ",
                             tf_gpu_id_.value());
@@ -472,9 +474,9 @@ Status BaseGPUDevice::Init(const SessionOptions& options) {
   gpu_device_info_->stream = stream_->compute;
   gpu_device_info_->default_context = device_context_;
   gpu_device_info_->event_mgr = em_;
-  PlatformGpuId platform_gpu_id;
+  PlatformDeviceId platform_gpu_id;
   TF_RETURN_IF_ERROR(
-      GpuIdManager::TfToPlatformGpuId(tf_gpu_id_, &platform_gpu_id));
+      DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id_, &platform_gpu_id));
   gpu_device_info_->gpu_id = platform_gpu_id.value();
   set_tensorflow_gpu_device_info(gpu_device_info_);
 
@@ -762,7 +764,7 @@ class ConcretePerOpGpuDevice : public PerOpGpuDevice {
   ConcretePerOpGpuDevice() : device_(&stream_device_) {}
 
   void Reinitialize(OpKernelContext* context, const gpuStream_t* gpu_stream,
-                    TfGpuId tf_gpu_id, Allocator* base_allocator,
+                    TfDeviceId tf_gpu_id, Allocator* base_allocator,
                     char* scratch) {
     stream_device_.Reinitialize(context, gpu_stream, tf_gpu_id, base_allocator,
                                 scratch);
@@ -776,8 +778,9 @@ class ConcretePerOpGpuDevice : public PerOpGpuDevice {
 };
 
 // Parse 'visible_device_list' into a list of platform GPU ids.
-Status ParseVisibleDeviceList(const string& visible_device_list,
-                              std::vector<PlatformGpuId>* visible_gpu_order) {
+Status ParseVisibleDeviceList(
+    const string& visible_device_list,
+    std::vector<PlatformDeviceId>* visible_gpu_order) {
   visible_gpu_order->clear();
   se::Platform* gpu_manager = GPUMachineManager();
 
@@ -807,13 +810,13 @@ Status ParseVisibleDeviceList(const string& visible_device_list,
             "' but visible device count is ",
             gpu_manager->VisibleDeviceCount());
       }
-      visible_gpu_order->push_back(PlatformGpuId(platform_gpu_id));
+      visible_gpu_order->push_back(PlatformDeviceId(platform_gpu_id));
     }
   }
 
   // Validate no repeats.
-  std::set<PlatformGpuId> visible_device_set(visible_gpu_order->begin(),
-                                             visible_gpu_order->end());
+  std::set<PlatformDeviceId> visible_device_set(visible_gpu_order->begin(),
+                                                visible_gpu_order->end());
   if (visible_device_set.size() != visible_gpu_order->size()) {
     return errors::InvalidArgument(
         "visible_device_list contained a duplicate entry: ",
@@ -824,8 +827,8 @@ Status ParseVisibleDeviceList(const string& visible_device_list,
 
 Status VerifyVirtualDeviceSettings(
     const size_t num_gpus_to_use, const GPUOptions& gpu_options,
-    const std::vector<PlatformGpuId>& visible_gpu_order,
-    const std::vector<PlatformGpuId>& valid_platform_gpu_ids,
+    const std::vector<PlatformDeviceId>& visible_gpu_order,
+    const std::vector<PlatformDeviceId>& valid_platform_gpu_ids,
     const std::map<int, std::pair<int, int>>& supported_priority_ranges) {
   const auto& virtual_devices = gpu_options.experimental().virtual_devices();
   CHECK(!virtual_devices.empty());
@@ -951,12 +954,13 @@ int64 MinSystemMemory(int64 available_memory) {
 // 'platform_gpu_id', when that virtual device is the only virtual device being
 // created on that GPU.
 Status SingleVirtualDeviceMemoryLimit(const GPUOptions& gpu_options,
-                                      PlatformGpuId platform_gpu_id,
+                                      PlatformDeviceId platform_gpu_id,
                                       int64* memory_limit) {
   int64 total_memory = 0;
   int64 available_memory = 0;
-  se::StreamExecutor* se =
-      GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie();
+  se::StreamExecutor* se = DeviceIdUtil::ExecutorForPlatformDeviceId(
+                               GPUMachineManager(), platform_gpu_id)
+                               .ValueOrDie();
   if (!se->DeviceMemoryUsage(&available_memory, &total_memory)) {
     return errors::Unknown("Failed to query available memory for GPU ",
                            platform_gpu_id.value());
@@ -1058,7 +1062,7 @@ Status BaseGPUDeviceFactory::CacheDeviceIds() {
     return Status::OK();
   }
 
-  std::vector<PlatformGpuId> visible_gpu_order(device_count);
+  std::vector<PlatformDeviceId> visible_gpu_order(device_count);
   std::iota(visible_gpu_order.begin(), visible_gpu_order.end(), 0);
   TF_RETURN_IF_ERROR(GetValidDeviceIds(visible_gpu_order, &cached_device_ids_));
   return Status::OK();
@@ -1066,7 +1070,7 @@ Status BaseGPUDeviceFactory::CacheDeviceIds() {
 
 Status BaseGPUDeviceFactory::ListPhysicalDevices(std::vector<string>* devices) {
   TF_RETURN_IF_ERROR(CacheDeviceIds());
-  for (PlatformGpuId platform_gpu_id : cached_device_ids_) {
+  for (PlatformDeviceId platform_gpu_id : cached_device_ids_) {
     const string device_name =
         strings::StrCat("/physical_device:GPU:", platform_gpu_id.value());
     devices->push_back(device_name);
@@ -1082,7 +1086,7 @@ Status BaseGPUDeviceFactory::GetDeviceDetails(
   if (device_index < 0 || device_index > cached_device_ids_.size()) {
     return errors::Internal("Invalid device index: ", device_index);
   }
-  PlatformGpuId platform_gpu_id = cached_device_ids_[device_index];
+  PlatformDeviceId platform_gpu_id = cached_device_ids_[device_index];
 
   TF_RETURN_IF_ERROR(ValidateGPUMachineManager());
   se::Platform* gpu_manager = GPUMachineManager();
@@ -1124,8 +1128,8 @@ Status BaseGPUDeviceFactory::CreateDevices(
     num_gpus_to_use = iter->second;
   }
   const auto& gpu_options = options.config.gpu_options();
-  std::vector<PlatformGpuId> visible_gpu_order;
-  std::vector<PlatformGpuId> valid_platform_gpu_ids;
+  std::vector<PlatformDeviceId> visible_gpu_order;
+  std::vector<PlatformDeviceId> valid_platform_gpu_ids;
   // If we aren't going to use any GPUs, don't initialize them.
   // We don't want to call ParseVisibleDeviceList if num_gpus_to_use is 0,
   // because it treats an empty gpu_options.visible_device_list as 'all GPUs
@@ -1178,7 +1182,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
 
     // Force to implicitly initialize CUDA runtime on each valid GPU before
     // CreateGPUDevice().
-    for (PlatformGpuId platform_gpu_id : valid_platform_gpu_ids) {
+    for (PlatformDeviceId platform_gpu_id : valid_platform_gpu_ids) {
 #if GOOGLE_CUDA
       err = cudaSetDevice(platform_gpu_id.value());
       if (err != cudaSuccess) {
@@ -1271,9 +1275,9 @@ Status BaseGPUDeviceFactory::CreateDevices(
     LOG(INFO) << line_buf;
     for (int i = 0; i < visible_gpu_order.size(); ++i) {
       line_buf = strings::StrCat(visible_gpu_order[i].value(), ":   ");
-      PlatformGpuId gpu_id_i = visible_gpu_order[i];
+      PlatformDeviceId gpu_id_i = visible_gpu_order[i];
       for (int j = 0; j < visible_gpu_order.size(); ++j) {
-        PlatformGpuId gpu_id_j = visible_gpu_order[j];
+        PlatformDeviceId gpu_id_j = visible_gpu_order[j];
         if (im.directed_links.find({gpu_id_i, gpu_id_j}) !=
             im.directed_links.end()) {
           line_buf.append("Y ");
@@ -1298,7 +1302,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
   int next_tf_gpu_id = 0;
   std::vector<int64> memory_limit_bytes;
   for (int i = 0; i < num_gpus_to_use; ++i) {
-    const PlatformGpuId platform_gpu_id = valid_platform_gpu_ids[i];
+    const PlatformDeviceId platform_gpu_id = valid_platform_gpu_ids[i];
     if (virtual_devices.empty() ||
         virtual_devices.Get(i).memory_limit_mb_size() == 0) {
       int64 single_virtual_device_memory_limit = 0;
@@ -1313,10 +1317,10 @@ Status BaseGPUDeviceFactory::CreateDevices(
                      });
     }
     while (next_tf_gpu_id < memory_limit_bytes.size()) {
-      TfGpuId tf_gpu_id(next_tf_gpu_id);
+      TfDeviceId tf_gpu_id(next_tf_gpu_id);
       ++next_tf_gpu_id;
-      TF_RETURN_IF_ERROR(
-          GpuIdManager::InsertTfPlatformGpuIdPair(tf_gpu_id, platform_gpu_id));
+      TF_RETURN_IF_ERROR(DeviceIdManager::InsertTfPlatformDeviceIdPair(
+          tf_gpu_id, platform_gpu_id));
     }
   }
   const int num_tf_gpus = next_tf_gpu_id;
@@ -1328,7 +1332,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
   // Build the GPUDevices
   CHECK_EQ(next_tf_gpu_id, memory_limit_bytes.size());
   for (int di = 0; di < num_tf_gpus; ++di) {
-    TfGpuId tf_gpu_id(di);
+    TfDeviceId tf_gpu_id(di);
     int64 bytes = memory_limit_bytes[di];
     auto it = device_localities.find(tf_gpu_id);
     if (it == device_localities.end()) {
@@ -1341,7 +1345,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
   return Status::OK();
 }
 
-static string GetShortDeviceDescription(PlatformGpuId platform_gpu_id,
+static string GetShortDeviceDescription(PlatformDeviceId platform_gpu_id,
                                         const se::DeviceDescription& desc) {
 #if GOOGLE_CUDA
   int cc_major;
@@ -1364,16 +1368,17 @@ static string GetShortDeviceDescription(PlatformGpuId platform_gpu_id,
 }
 
 Status BaseGPUDeviceFactory::CreateGPUDevice(
-    const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
-    int64 memory_limit, const DeviceLocality& dev_locality,
+    const SessionOptions& options, const string& name_prefix,
+    TfDeviceId tf_gpu_id, int64 memory_limit,
+    const DeviceLocality& dev_locality,
     std::vector<std::unique_ptr<Device>>* devices) {
   CHECK_GE(tf_gpu_id.value(), 0);
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_gpu_id.value());
-  GpuIdUtil::CheckValidTfGpuId(tf_gpu_id);
-  PlatformGpuId platform_gpu_id;
+  DeviceIdUtil::CheckValidTfDeviceId(GPUMachineManager(), tf_gpu_id);
+  PlatformDeviceId platform_gpu_id;
   TF_RETURN_IF_ERROR(
-      GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
+      DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id));
   int numa_node = dev_locality.numa_node();
 
   se::Platform* gpu_manager = GPUMachineManager();
@@ -1417,18 +1422,18 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
 }
 
 namespace {
-std::unique_ptr<std::map<std::pair<PlatformGpuId, PlatformGpuId>, bool>>
+std::unique_ptr<std::map<std::pair<PlatformDeviceId, PlatformDeviceId>, bool>>
 GetPeerAccessMap(se::Platform* platform,
-                 const std::vector<PlatformGpuId>& visible_gpu_order) {
-  std::unique_ptr<std::map<std::pair<PlatformGpuId, PlatformGpuId>, bool>> map(
-      new std::map<std::pair<PlatformGpuId, PlatformGpuId>, bool>);
-  for (PlatformGpuId platform_gpu_i : visible_gpu_order) {
-    for (PlatformGpuId platform_gpu_j : visible_gpu_order) {
+                 const std::vector<PlatformDeviceId>& visible_gpu_order) {
+  std::unique_ptr<std::map<std::pair<PlatformDeviceId, PlatformDeviceId>, bool>>
+  map(new std::map<std::pair<PlatformDeviceId, PlatformDeviceId>, bool>);
+  for (PlatformDeviceId platform_gpu_i : visible_gpu_order) {
+    for (PlatformDeviceId platform_gpu_j : visible_gpu_order) {
       se::StreamExecutor* from =
-          GpuIdUtil::ExecutorForPlatformGpuId(platform, platform_gpu_i)
+          DeviceIdUtil::ExecutorForPlatformDeviceId(platform, platform_gpu_i)
               .ValueOrDie();
       se::StreamExecutor* to =
-          GpuIdUtil::ExecutorForPlatformGpuId(platform, platform_gpu_j)
+          DeviceIdUtil::ExecutorForPlatformDeviceId(platform, platform_gpu_j)
               .ValueOrDie();
       (*map)[{platform_gpu_i, platform_gpu_j}] =
           from->CanEnablePeerAccessTo(to);
@@ -1441,7 +1446,7 @@ GetPeerAccessMap(se::Platform* platform,
 }  // namespace
 
 Status BaseGPUDeviceFactory::GetInterconnectMaps(
-    const std::vector<PlatformGpuId>& visible_gpu_order,
+    const std::vector<PlatformDeviceId>& visible_gpu_order,
     se::Platform* gpu_manager, std::vector<InterconnectMap>* maps) {
   // The default interconnect map is obtained from the StreamExecutor.
   auto access_map = GetPeerAccessMap(gpu_manager, visible_gpu_order);
@@ -1449,8 +1454,8 @@ Status BaseGPUDeviceFactory::GetInterconnectMaps(
   InterconnectMap& imap = maps->at(0);
   imap.name = "StreamExecutor";
   imap.strength = InterconnectMap::kStreamExecutorStrength;
-  for (PlatformGpuId gpu_id_i : visible_gpu_order) {
-    for (PlatformGpuId gpu_id_j : visible_gpu_order) {
+  for (PlatformDeviceId gpu_id_i : visible_gpu_order) {
+    for (PlatformDeviceId gpu_id_j : visible_gpu_order) {
       if (gpu_id_i == gpu_id_j) continue;
       if ((*access_map)[{gpu_id_i, gpu_id_j}]) {
         imap.directed_links.insert({gpu_id_i, gpu_id_j});
@@ -1463,15 +1468,15 @@ Status BaseGPUDeviceFactory::GetInterconnectMaps(
 Status BaseGPUDeviceFactory::GetDeviceLocalities(
     int num_tf_gpus, const std::vector<InterconnectMap>& interconnects,
     LocalityMap* localities) {
-  std::vector<TfGpuId> all_tf_gpu_ids;
+  std::vector<TfDeviceId> all_tf_gpu_ids;
   all_tf_gpu_ids.reserve(num_tf_gpus);
   for (int i = 0; i < num_tf_gpus; ++i) {
-    all_tf_gpu_ids.push_back(TfGpuId(i));
+    all_tf_gpu_ids.push_back(TfDeviceId(i));
   }
-  for (TfGpuId tf_gpu_id : all_tf_gpu_ids) {
-    PlatformGpuId platform_gpu_id;
+  for (TfDeviceId tf_gpu_id : all_tf_gpu_ids) {
+    PlatformDeviceId platform_gpu_id;
     TF_RETURN_IF_ERROR(
-        GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
+        DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id));
     // Get GPU bus_id from its reported NUMA affinity.  Because GPUs are
     // virtualized in some environments, we can't just use the GPU id.
     // NUMA locales are indexed from 0, buses are indexed from 1.
@@ -1503,10 +1508,10 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
     // Set LocalLinks from InterconnectMaps.
     LocalLinks* links = dev_locality.mutable_links();
     for (const InterconnectMap& imap : interconnects) {
-      for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) {
-        PlatformGpuId platform_gpu_dst;
-        TF_RETURN_IF_ERROR(
-            GpuIdManager::TfToPlatformGpuId(tf_gpu_dst, &platform_gpu_dst));
+      for (TfDeviceId tf_gpu_dst : all_tf_gpu_ids) {
+        PlatformDeviceId platform_gpu_dst;
+        TF_RETURN_IF_ERROR(DeviceIdManager::TfToPlatformDeviceId(
+            tf_gpu_dst, &platform_gpu_dst));
         if (imap.directed_links.find({platform_gpu_id, platform_gpu_dst}) !=
             imap.directed_links.end()) {
           InterconnectLink* ilink = links->add_link();
@@ -1519,11 +1524,11 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
 
     // If this is one of multiple virtual GPUs on the same physical GPU
     // add high strength links to the others.
-    for (TfGpuId tf_gpu_dst : all_tf_gpu_ids) {
+    for (TfDeviceId tf_gpu_dst : all_tf_gpu_ids) {
       if (tf_gpu_id == tf_gpu_dst) continue;
-      PlatformGpuId platform_gpu_dst;
+      PlatformDeviceId platform_gpu_dst;
       TF_RETURN_IF_ERROR(
-          GpuIdManager::TfToPlatformGpuId(tf_gpu_dst, &platform_gpu_dst));
+          DeviceIdManager::TfToPlatformDeviceId(tf_gpu_dst, &platform_gpu_dst));
       if (platform_gpu_id == platform_gpu_dst) {
         InterconnectLink* ilink = links->add_link();
         ilink->set_device_id(tf_gpu_dst.value());
@@ -1533,9 +1538,10 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
     }
 
     (*localities)[tf_gpu_id] = dev_locality;
-    VLOG(1) << "GPUDevice PlatformGpuId " << platform_gpu_id << " TfGpuId "
-            << tf_gpu_id << " on bus " << dev_locality.bus_id()
-            << " numa: " << numa_node << " pci: " << desc->pci_bus_id()
+    VLOG(1) << "GPUDevice PlatformDeviceId " << platform_gpu_id
+            << " TfDeviceId " << tf_gpu_id << " on bus "
+            << dev_locality.bus_id() << " numa: " << numa_node
+            << " pci: " << desc->pci_bus_id()
             << " DeviceLocality: " << dev_locality.DebugString();
   }
   return Status::OK();
@@ -1543,7 +1549,7 @@ Status BaseGPUDeviceFactory::GetDeviceLocalities(
 
 static int GetDefaultMinGPUMultiprocessorCount(
     se::Platform* gpu_manager,
-    const std::vector<PlatformGpuId>& visible_gpu_order) {
+    const std::vector<PlatformDeviceId>& visible_gpu_order) {
   static const int kDefaultMinGPUMultiprocessorCount = 8;
 
   // Find the highest multi-processor count across all visible GPUs.
@@ -1568,7 +1574,7 @@ static int GetDefaultMinGPUMultiprocessorCount(
 
 static int GetMinGPUMultiprocessorCount(
     se::Platform* gpu_manager,
-    const std::vector<PlatformGpuId>& visible_gpu_order) {
+    const std::vector<PlatformDeviceId>& visible_gpu_order) {
   const char* tf_min_gpu_core_count = getenv("TF_MIN_GPU_MULTIPROCESSOR_COUNT");
 
   if (tf_min_gpu_core_count == nullptr ||
@@ -1658,20 +1664,20 @@ std::vector<int> GetSupportedAMDGPUISAVersions() {
 }  // namespace
 
 Status BaseGPUDeviceFactory::EnablePeerAccess(
-    const std::vector<PlatformGpuId>& visible_gpu_order) {
+    const std::vector<PlatformDeviceId>& visible_gpu_order) {
   se::Platform* gpu_manager = GPUMachineManager();
   int possible_peer_count = 0;
   int enabled_peer_count = 0;
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
-    const PlatformGpuId platform_gpu_i = visible_gpu_order[i];
+    const PlatformDeviceId platform_gpu_i = visible_gpu_order[i];
     for (int j = 0; j < visible_gpu_order.size(); ++j) {
-      const PlatformGpuId platform_gpu_j = visible_gpu_order[j];
+      const PlatformDeviceId platform_gpu_j = visible_gpu_order[j];
       // We have already validated that ExecutorForDevice() calls return OK.
       se::StreamExecutor* from =
-          GpuIdUtil::ExecutorForPlatformGpuId(gpu_manager, platform_gpu_i)
+          DeviceIdUtil::ExecutorForPlatformDeviceId(gpu_manager, platform_gpu_i)
               .ValueOrDie();
       se::StreamExecutor* to =
-          GpuIdUtil::ExecutorForPlatformGpuId(gpu_manager, platform_gpu_j)
+          DeviceIdUtil::ExecutorForPlatformDeviceId(gpu_manager, platform_gpu_j)
               .ValueOrDie();
 
       if (from->CanEnablePeerAccessTo(to)) {
@@ -1702,8 +1708,8 @@ Status BaseGPUDeviceFactory::EnablePeerAccess(
 }
 
 Status BaseGPUDeviceFactory::GetValidDeviceIds(
-    const std::vector<PlatformGpuId>& visible_gpu_order,
-    std::vector<PlatformGpuId>* ids) {
+    const std::vector<PlatformDeviceId>& visible_gpu_order,
+    std::vector<PlatformDeviceId>* ids) {
   se::Platform* gpu_manager = GPUMachineManager();
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
     int visible_gpu_id = visible_gpu_order[i].value();
@@ -1792,7 +1798,7 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
 
   // Filter out devices that don't have the right capability or power.
   for (int i = 0; i < visible_gpu_order.size(); ++i) {
-    const PlatformGpuId visible_gpu_id = visible_gpu_order[i];
+    const PlatformDeviceId visible_gpu_id = visible_gpu_order[i];
     auto description_status =
         gpu_manager->DescriptionForDevice(visible_gpu_id.value());
     if (!description_status.ok()) {
@@ -1862,7 +1868,7 @@ Status BaseGPUDeviceFactory::GetValidDeviceIds(
   if (!ids->empty()) {
     std::vector<int> raw_ids(ids->size());
     std::transform(ids->begin(), ids->end(), raw_ids.begin(),
-                   [](PlatformGpuId id) -> int { return id.value(); });
+                   [](PlatformDeviceId id) -> int { return id.value(); });
     LOG(INFO) << "Adding visible gpu devices: " << absl::StrJoin(raw_ids, ", ");
   }
 

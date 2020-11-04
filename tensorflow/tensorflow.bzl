@@ -1371,9 +1371,9 @@ def tf_gpu_kernel_library(
         copts = copts,
         deps = deps + if_cuda_is_configured_compat([
             clean_dep("//tensorflow/stream_executor/cuda:cudart_stub"),
-            clean_dep("//tensorflow/core:gpu_lib"),
+            clean_dep("//tensorflow/core:device_lib"),
         ]) + if_rocm_is_configured([
-            clean_dep("//tensorflow/core:gpu_lib"),
+            clean_dep("//tensorflow/core:device_lib"),
         ]),
         alwayslink = 1,
         **kwargs
@@ -1489,7 +1489,7 @@ def tf_kernel_library(
             [prefix + "*impl.h"],
             exclude = [prefix + "*test*", prefix + "*.cu.h"],
         )
-    cuda_deps = [clean_dep("//tensorflow/core:gpu_lib")]
+    cuda_deps = [clean_dep("//tensorflow/core:device_lib")]
     if gpu_srcs:
         for gpu_src in gpu_srcs:
             if gpu_src.endswith(".cc") and not gpu_src.endswith(".cu.cc"):
@@ -1504,7 +1504,7 @@ def tf_kernel_library(
         )
         cuda_deps.extend([":" + name + "_gpu"])
     kwargs["tags"] = kwargs.get("tags", []) + [
-        "req_dep=%s" % clean_dep("//tensorflow/core:gpu_lib"),
+        "req_dep=%s" % clean_dep("//tensorflow/core:device_lib"),
         "req_dep=@local_config_cuda//cuda:cuda_headers",
     ]
     tf_gpu_library(

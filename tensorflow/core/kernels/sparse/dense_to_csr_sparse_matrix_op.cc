@@ -19,7 +19,6 @@ limitations under the License.
 #define EIGEN_USE_GPU
 #endif
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_reference.h"
@@ -32,9 +31,10 @@ limitations under the License.
 #include "tensorflow/core/kernels/gather_nd_op.h"
 #include "tensorflow/core/kernels/sparse/kernels.h"
 #include "tensorflow/core/kernels/sparse/sparse_matrix.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/util/cuda_solvers.h"
 #include "tensorflow/core/util/cuda_sparse.h"
 #endif

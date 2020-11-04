@@ -40,34 +40,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-# -----------------------------------------------------------------------------
-# Libraries with GPU facilities that are useful for writing kernels.
-cc_library(
-    name = "gpu_lib",
-    srcs = [
-        "gpu_event_mgr.cc",
-    ],
-    hdrs = [
-        "gpu_event_mgr.h",
-    ],
-    copts = tf_copts(),
-    visibility = ["//visibility:public"],
-    deps = [
-        "//tensorflow/core:framework",
-        "//tensorflow/core:framework_internal",
-        "//tensorflow/core:lib",
-        "//tensorflow/core:lib_internal",
-        "//tensorflow/core:protos_all_cc",
-        "//tensorflow/core/platform:stream_executor",
-    ],
-)
-
-cc_library(
-    name = "gpu_headers_lib",
-    hdrs = [
-        "gpu_event_mgr.h",
-    ],
-)
 
 cc_library(
     name = "cuda",
@@ -83,31 +55,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "gpu_id",
-    hdrs = [
-        "gpu_id.h",
-        "gpu_id_manager.h",
-    ],
-    deps = [
-        "//tensorflow/core:lib",
-    ] + if_static([
-        ":gpu_id_impl",
-    ]),
-)
-
-cc_library(
-    name = "gpu_id_impl",
-    srcs = ["gpu_id_manager.cc"],
-    hdrs = [
-        "gpu_id.h",
-        "gpu_id_manager.h",
-    ],
-    deps = [
-        "//tensorflow/core:lib",
-    ],
-)
-
 filegroup(
     name = "gpu_runtime_headers",
     srcs = [
@@ -115,17 +62,17 @@ filegroup(
         "gpu_cudamalloc_allocator.h",
         "gpu_debug_allocator.h",
         "gpu_device.h",
-        "gpu_event_mgr.h",
-        "gpu_host_allocator.h",
-        "gpu_id.h",
-        "gpu_id_manager.h",
-        "gpu_id_utils.h",
         "gpu_init.h",
         "gpu_managed_allocator.h",
-        "gpu_mem_allocator.h",
         "gpu_process_state.h",
         "gpu_util.h",
         "//tensorflow/core/common_runtime:gpu_runtime_headers",
+        "//tensorflow/core/common_runtime/device_common:device_event_mgr.h",
+        "//tensorflow/core/common_runtime/device_common:device_host_allocator.h",
+        "//tensorflow/core/common_runtime/device_common:device_id.h",
+        "//tensorflow/core/common_runtime/device_common:device_id_manager.h",
+        "//tensorflow/core/common_runtime/device_common:device_id_utils.h",
+        "//tensorflow/core/common_runtime/device_common:device_mem_allocator.h",
     ],
     visibility = ["//visibility:private"],
 )
@@ -150,9 +97,7 @@ tf_cuda_library(
     ],
     deps = [
         ":gpu_bfc_allocator",
-        ":gpu_id_impl",
         ":gpu_init_impl",
-        ":gpu_lib",
         "//tensorflow/core:core_cpu_lib",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
@@ -162,6 +107,8 @@ tf_cuda_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:core_cpu_impl",
         "//tensorflow/core/platform:stream_executor",
+        "//tensorflow/core/common_runtime/device_common:device_id_impl",
+        "//tensorflow/core/common_runtime/device_common:device_lib",
         "//tensorflow/core/platform:tensor_float_32_utils",
         "//tensorflow/core/profiler/lib:annotated_traceme",
         "//tensorflow/core/profiler/lib:scoped_annotation",
@@ -197,30 +144,11 @@ tf_cuda_library(
     features = ["parse_headers"],
     visibility = ["//visibility:public"],
     deps = [
-        ":gpu_mem_allocator",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:bfc_allocator",
-    ],
-)
-
-tf_cuda_library(
-    name = "gpu_mem_allocator",
-    srcs = [
-        "gpu_id.h",
-    ],
-    hdrs = [
-        "gpu_host_allocator.h",
-        "gpu_mem_allocator.h",
-    ],
-    features = ["parse_headers"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//tensorflow/core:lib",
-        "//tensorflow/core:lib_internal",
-        "//tensorflow/core/framework:allocator",
-        "//tensorflow/core/platform:stream_executor",
+        "//tensorflow/core/common_runtime/device_common:device_mem_allocator"
     ],
 )
 
@@ -269,10 +197,10 @@ tf_cc_test(
     srcs = ["gpu_device_on_non_gpu_machine_test.cc"],
     linkstatic = tf_kernel_tests_linkstatic(),
     deps = [
-        ":gpu_headers_lib",
-        ":gpu_id",
         ":gpu_runtime",
         "//tensorflow/core:test",
+        "//tensorflow/core/common_runtime/device_common:device_headers_lib",
+        "//tensorflow/core/common_runtime/device_common:device_id",
     ],
 )
 
@@ -282,13 +210,12 @@ tf_cc_tests_gpu(
     srcs = [
         "gpu_bfc_allocator_test.cc",
         "gpu_device_test.cc",
-        "gpu_id_manager_test.cc",
         "pool_allocator_test.cc",
+        "//tensorflow/core/common_runtime/device_common:device_id_manager_test.cc",
     ],
     linkstatic = tf_kernel_tests_linkstatic(),
     tags = tf_cuda_tests_tags(),
     deps = [
-        ":gpu_id",
         ":gpu_runtime",
         "//tensorflow/cc:cc_ops",
         "//tensorflow/core:framework",
@@ -302,6 +229,7 @@ tf_cc_tests_gpu(
         "//tensorflow/core/common_runtime:core_cpu",
         "//tensorflow/core/common_runtime:core_cpu_internal",
         "//tensorflow/core/common_runtime:direct_session_internal",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "//tensorflow/core/kernels:ops_util",
     ],
 )
@@ -338,7 +266,6 @@ tf_cuda_cc_test(
         "multi_gpu",
     ],
     deps = [
-        ":gpu_id",
         "//tensorflow/cc:cc_ops",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
@@ -351,6 +278,7 @@ tf_cuda_cc_test(
         "//tensorflow/core/common_runtime:core_cpu",
         "//tensorflow/core/common_runtime:core_cpu_internal",
         "//tensorflow/core/common_runtime:direct_session_internal",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "//tensorflow/core/kernels:ops_util",
     ],
 )
@@ -386,7 +314,6 @@ tf_cc_test_gpu(
     linkstatic = tf_kernel_tests_linkstatic(),
     tags = tf_cuda_tests_tags(),
     deps = [
-        ":gpu_id",
         ":gpu_runtime",
         "//tensorflow/cc:cc_ops",
         "//tensorflow/core:framework",
@@ -400,6 +327,7 @@ tf_cc_test_gpu(
         "//tensorflow/core/common_runtime:core_cpu",
         "//tensorflow/core/common_runtime:core_cpu_internal",
         "//tensorflow/core/common_runtime:direct_session_internal",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "//tensorflow/core/kernels:ops_util",
     ],
 )

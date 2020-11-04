@@ -23,7 +23,6 @@ limitations under the License.
 
 #include <numeric>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
@@ -33,8 +32,9 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/kernels/gpu_device_array.h"
 #include "tensorflow/core/kernels/split_lib_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
@@ -209,37 +209,36 @@ class SplitVOpCPUImpl {
          input_element_count >= std::min(num_threads, num_split) * 4096 &&
          input_element_count < num_split * 180 * 1024);
 
-    auto range_output_func = [&indices, context, &input_shape, split_dim,
-                              &split_sizes_vec, &split_start_points,
-                              use_parallelism_between_outputs, &input_reshaped,
-                              &make_sizes,
-                              &reshape_result](int64 start, int64 limit) {
-      for (int64 i = start; i < limit; ++i) {
-        TensorShape output_shape(input_shape);
-        output_shape.set_dim(split_dim, split_sizes_vec[i]);
-        Tensor* result = nullptr;
-        OP_REQUIRES_OK(context,
-                       context->allocate_output(i, output_shape, &result));
+    auto range_output_func =
+        [&indices, context, &input_shape, split_dim, &split_sizes_vec,
+         &split_start_points, use_parallelism_between_outputs, &input_reshaped,
+         &make_sizes, &reshape_result](int64 start, int64 limit) {
+          for (int64 i = start; i < limit; ++i) {
+            TensorShape output_shape(input_shape);
+            output_shape.set_dim(split_dim, split_sizes_vec[i]);
+            Tensor* result = nullptr;
+            OP_REQUIRES_OK(context,
+                           context->allocate_output(i, output_shape, &result));
 
-        const auto sizes = make_sizes(split_sizes_vec[i]);
+            const auto sizes = make_sizes(split_sizes_vec[i]);
 
-        if (sizes.TotalSize() > 0) {
-          auto result_shaped = reshape_result(result, split_sizes_vec[i]);
+            if (sizes.TotalSize() > 0) {
+              auto result_shaped = reshape_result(result, split_sizes_vec[i]);
 
-          auto current_indices = indices;
-          current_indices[NDims - 2] = split_start_points[i];
-          if (use_parallelism_between_outputs) {
-            // Use sequential implementation for single output.
-            result_shaped = input_reshaped.slice(current_indices, sizes);
-          } else {
-            // This implementation may be parallel internally.
-            functor::Split<CPUDevice, T, NDims>()(
-                context->eigen_device<CPUDevice>(), result_shaped,
-                input_reshaped, current_indices, sizes);
+              auto current_indices = indices;
+              current_indices[NDims - 2] = split_start_points[i];
+              if (use_parallelism_between_outputs) {
+                // Use sequential implementation for single output.
+                result_shaped = input_reshaped.slice(current_indices, sizes);
+              } else {
+                // This implementation may be parallel internally.
+                functor::Split<CPUDevice, T, NDims>()(
+                    context->eigen_device<CPUDevice>(), result_shaped,
+                    input_reshaped, current_indices, sizes);
+              }
+            }
           }
-        }
-      }
-    };
+        };
     if (use_parallelism_between_outputs) {
       // Run in parallel, disabling parallelism in functor.
       Shard(num_split,

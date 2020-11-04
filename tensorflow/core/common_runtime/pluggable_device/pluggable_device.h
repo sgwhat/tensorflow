@@ -21,12 +21,12 @@ limitations under the License.
 #include <unordered_map>
 #include <vector>
 
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/local_device.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_context.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_manager.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_id_utils.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/device_base.h"
@@ -46,8 +46,7 @@ class PluggableDevice : public LocalDevice {
   PluggableDevice(const SessionOptions& options, const std::string& name,
                   const std::string& device_type,
                   const std::string& subdevice_type, Bytes memory_limit,
-                  const DeviceLocality& locality,
-                  TfPluggableDeviceId tf_device_id,
+                  const DeviceLocality& locality, TfDeviceId tf_device_id,
                   const std::string& physical_device_desc,
                   Allocator* device_allocator, Allocator* cpu_allocator,
                   bool sync_every_op);
@@ -93,7 +92,7 @@ class PluggableDevice : public LocalDevice {
   StreamGroup* stream_;
   PluggableDeviceContext* device_context_;
   GpuDeviceInfo* pluggable_device_info_ = nullptr;
-  TfPluggableDeviceId tf_device_id_;
+  TfDeviceId tf_device_id_;
   const string subdevice_type_;
   const bool sync_every_op_ = false;
   EventMgr* em_ = nullptr;

@@ -17,9 +17,9 @@ limitations under the License.
 
 #include "tensorflow/core/common_runtime/copy_tensor.h"
 #include "tensorflow/core/common_runtime/device.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
 #include "tensorflow/core/common_runtime/dma_helper.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_process_state.h"
 
 #include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_context.h"
@@ -148,7 +148,8 @@ void PluggableDeviceUtil::SetProtoFromPluggableDevice(
   char* buf = nullptr;
   const int64 total_bytes = is_dead ? 0 : tensor.TotalBytes();
   if (total_bytes > 0) {
-    const string& subdevice_type = DeviceFactory::SubDeviceType(dev->device_type()); 
+    const string& subdevice_type =
+        DeviceFactory::SubDeviceType(dev->device_type());
     alloc = PluggableDeviceProcessState::singleton(subdevice_type)
                 ->GetPluggableDeviceHostAllocator(0);
     buf = static_cast<char*>(

@@ -18,8 +18,8 @@ limitations under the License.
 
 #define EIGEN_USE_GPU
 
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_device.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_process_state.h"
 #include "tensorflow/core/common_runtime/threadpool_device.h"
 #include "tensorflow/core/platform/numa.h"
@@ -30,7 +30,7 @@ class GPUDevice : public BaseGPUDevice {
  public:
   GPUDevice(const SessionOptions& options, const string& name,
             Bytes memory_limit, const DeviceLocality& locality,
-            TfGpuId tf_gpu_id, const string& physical_device_desc,
+            TfDeviceId tf_gpu_id, const string& physical_device_desc,
             Allocator* gpu_allocator, Allocator* cpu_allocator)
       : BaseGPUDevice(options, name, memory_limit, locality, tf_gpu_id,
                       physical_device_desc, gpu_allocator, cpu_allocator,
@@ -63,7 +63,7 @@ class GPUDeviceFactory : public BaseGPUDeviceFactory {
  private:
   std::unique_ptr<BaseGPUDevice> CreateGPUDevice(
       const SessionOptions& options, const string& name, Bytes memory_limit,
-      const DeviceLocality& locality, TfGpuId tf_gpu_id,
+      const DeviceLocality& locality, TfDeviceId tf_gpu_id,
       const string& physical_device_desc, Allocator* gpu_allocator,
       Allocator* cpu_allocator) override {
     return absl::make_unique<GPUDevice>(options, name, memory_limit, locality,

@@ -15,7 +15,7 @@ limitations under the License.
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 
 #include <atomic>
 #include "tensorflow/core/common_runtime/dma_helper.h"
@@ -126,11 +126,11 @@ TEST(EventMgr, WarnIfInCallback) {
   stream->Init();
   bool hit = false;
   th.StartPollingLoop();
-  gpu_event_mgr::WarnIfInCallback([&hit] { hit = true; });
+  device_event_mgr::WarnIfInCallback([&hit] { hit = true; });
   EXPECT_FALSE(hit);
   Notification note;
   em.ThenExecute(stream.get(), [&hit, &note]() {
-    gpu_event_mgr::WarnIfInCallback([&hit, &note] {
+    device_event_mgr::WarnIfInCallback([&hit, &note] {
       hit = true;
       note.Notify();
     });
@@ -149,7 +149,7 @@ class GPUDeviceTestHelper {
         DeviceFactory::NewDevice(DEVICE_GPU, sops, "/job:a/replica:0/task:0");
     gpu_.reset(reinterpret_cast<BaseGPUDevice*>(device_.release()));
     gpu_allocator_ = GPUProcessState::singleton()->GetGPUAllocator(
-        GPUOptions(), TfGpuId(0), memory_limit);
+        GPUOptions(), TfDeviceId(0), memory_limit);
     host_allocator_ = GPUProcessState::singleton()->GetGpuHostAllocator(0);
   }
 

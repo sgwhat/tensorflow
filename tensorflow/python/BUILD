@@ -460,7 +460,7 @@ tf_python_pybind_extension(
         "//tensorflow/core:lib_headers_for_pybind",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:core_cpu_headers_lib",
-        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "@pybind11",
     ],
 )
@@ -7101,7 +7101,7 @@ tf_python_pybind_extension(
         "@pybind11",
         "//tensorflow/core/common_runtime:core_cpu_headers_lib",
         "//tensorflow/core:framework_headers_lib",
-        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "//tensorflow/core:protos_all_cc",
     ] + if_not_windows(["//tensorflow/core/grappler/costs:graph_properties"]),  # b/148556093,
 )
@@ -7178,7 +7178,7 @@ tf_python_pybind_extension(
         "//tensorflow/core:lib_headers_for_pybind",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:core_cpu_headers_lib",
-        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "@com_google_absl//absl/types:span",
         "@pybind11",
     ],
@@ -7239,7 +7239,7 @@ tf_python_pybind_extension(
         "//tensorflow/core:lib_headers_for_pybind",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:core_cpu_headers_lib",
-        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "//tensorflow/core/common_runtime/device_common:device_id",
         "@pybind11",
     ],
 )

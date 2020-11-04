@@ -30,7 +30,7 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #if GOOGLE_CUDA

@@ -33,7 +33,7 @@ limitations under the License.
 #include "rocm/include/rccl/rccl.h"
 #include "tensorflow/core/common_runtime/gpu_device_context.h"
 #endif
-#include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
+#include "tensorflow/core/common_runtime/device_common/device_event_mgr.h"
 #include "tensorflow/core/framework/device_base.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/platform/mutex.h"

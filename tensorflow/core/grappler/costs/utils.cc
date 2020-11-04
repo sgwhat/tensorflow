@@ -21,9 +21,8 @@ limitations under the License.
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "third_party/eigen3/Eigen/Core"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
 #include "tensorflow/core/framework/allocation_description.pb.h"
 #include "tensorflow/core/framework/attr_value.pb.h"
 #include "tensorflow/core/framework/op.h"
@@ -45,6 +44,7 @@ limitations under the License.
 #include "tensorflow/core/platform/protobuf.h"
 #include "tensorflow/core/protobuf/config.pb.h"
 #include "tensorflow/core/util/device_name_utils.h"
+#include "third_party/eigen3/Eigen/Core"
 
 namespace tensorflow {
 namespace grappler {
@@ -241,12 +241,13 @@ DeviceProperties GetDeviceInfo(const string& device_str) {
   DeviceNameUtils::ParsedName parsed;
   if (DeviceNameUtils::ParseFullName(device_str, &parsed)) {
     if (parsed.type == "GPU") {
-      TfGpuId tf_gpu_id(parsed.id);
-      PlatformGpuId platform_gpu_id;
-      Status s = GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id);
+      TfDeviceId tf_gpu_id(parsed.id);
+      PlatformDeviceId platform_gpu_id;
+      Status s =
+          DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id);
       if (!s.ok()) {
         // We are probably running simulation without linking cuda libraries.
-        platform_gpu_id = PlatformGpuId(parsed.id);
+        platform_gpu_id = PlatformDeviceId(parsed.id);
       }
       return GetLocalGPUInfo(platform_gpu_id);
     } else if (parsed.type == "CPU") {

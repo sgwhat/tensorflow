@@ -31,8 +31,8 @@ limitations under the License.
 #include "include/libxsmm.h"
 #endif
 
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
 #include "tensorflow/core/framework/device_factory.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/strings/numbers.h"
@@ -75,7 +75,7 @@ DeviceProperties GetLocalCPUInfo() {
   return device;
 }
 
-DeviceProperties GetLocalGPUInfo(PlatformGpuId platform_gpu_id) {
+DeviceProperties GetLocalGPUInfo(PlatformDeviceId platform_gpu_id) {
   DeviceProperties device;
   device.set_type("GPU");
 
@@ -160,16 +160,17 @@ DeviceProperties GetDeviceInfo(const DeviceNameUtils::ParsedName& device) {
     return GetLocalCPUInfo();
   } else if (device.type == "GPU" && subdevice_type.empty()) {
     if (device.has_id) {
-      TfGpuId tf_gpu_id(device.id);
-      PlatformGpuId platform_gpu_id;
-      Status s = GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id);
+      TfDeviceId tf_gpu_id(device.id);
+      PlatformDeviceId platform_gpu_id;
+      Status s =
+          DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id);
       if (!s.ok()) {
         LOG(ERROR) << s;
         return unknown;
       }
       return GetLocalGPUInfo(platform_gpu_id);
     } else {
-      return GetLocalGPUInfo(PlatformGpuId(0));
+      return GetLocalGPUInfo(PlatformDeviceId(0));
     }
   }
   return unknown;

@@ -391,7 +391,7 @@ tf_kernel_library(
     ]) + if_cuda_or_rocm([
         "//tensorflow/core/nccl:nccl_lib",
         "//tensorflow/core:framework",
-        "//tensorflow/core:gpu_headers_lib",
+        "//tensorflow/core:device_headers_lib",
     ]),
 )
 
@@ -454,7 +454,7 @@ tf_cuda_library(
     srcs = ["ops_testutil.cc"],
     hdrs = ["ops_testutil.h"],
     cuda_deps = [
-        "//tensorflow/core:gpu_lib",
+        "//tensorflow/core:device_lib",
         "//tensorflow/core:gpu_runtime",
     ],
     deps = [
@@ -723,8 +723,8 @@ cc_library(
     ],
     visibility = ["//tensorflow:__subpackages__"],
     deps = [
+        "//tensorflow/core:device_headers_lib",
         "//tensorflow/core:framework",
-        "//tensorflow/core:gpu_headers_lib",
         "//tensorflow/core:lib",
     ],
 )

@@ -18,13 +18,13 @@ limitations under the License.
 #include <cstring>
 #include <vector>
 
+#include "tensorflow/core/common_runtime/device_common/device_host_allocator.h"
+#include "tensorflow/core/common_runtime/device_common/device_id.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_manager.h"
+#include "tensorflow/core/common_runtime/device_common/device_id_utils.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_bfc_allocator.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_cudamalloc_allocator.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_debug_allocator.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_host_allocator.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_manager.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_id_utils.h"
 #include "tensorflow/core/common_runtime/gpu/gpu_init.h"
 #include "tensorflow/core/common_runtime/pool_allocator.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
@@ -66,10 +66,11 @@ GPUProcessState::GPUProcessState() : gpu_device_enabled_(false) {
   process_state_ = ProcessState::singleton();
 }
 
-int GPUProcessState::BusIdForGPU(TfGpuId tf_gpu_id) {
+int GPUProcessState::BusIdForGPU(TfDeviceId tf_gpu_id) {
   // Return the NUMA node associated with the GPU's StreamExecutor.
   se::StreamExecutor* se =
-      GpuIdUtil::ExecutorForTfGpuId(tf_gpu_id).ValueOrDie();
+      DeviceIdUtil::ExecutorForTfDeviceId(GPUMachineManager(), tf_gpu_id)
+          .ValueOrDie();
   int numa_node = se->GetDeviceDescription().numa_node();
   // bus_id must be non-negative.  If the numa_node is not known,
   // use 0.
@@ -77,14 +78,14 @@ int GPUProcessState::BusIdForGPU(TfGpuId tf_gpu_id) {
 }
 
 Allocator* GPUProcessState::GetGPUAllocator(const GPUOptions& options,
-                                            TfGpuId tf_gpu_id,
+                                            TfDeviceId tf_gpu_id,
                                             size_t total_bytes) {
   CHECK(process_state_);
 #if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) || \
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
   const string& allocator_type = options.allocator_type();
   mutex_lock lock(mu_);
-  GpuIdUtil::CheckValidTfGpuId(tf_gpu_id);
+  DeviceIdUtil::CheckValidTfDeviceId(GPUMachineManager(), tf_gpu_id);
 
   if (tf_gpu_id.value() >= static_cast<int64>(gpu_allocators_.size())) {
     gpu_allocators_.resize(tf_gpu_id.value() + 1);
@@ -98,15 +99,18 @@ Allocator* GPUProcessState::GetGPUAllocator(const GPUOptions& options,
       return nullptr;
     }
 
-    PlatformGpuId platform_gpu_id;
-    TF_CHECK_OK(GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
+    PlatformDeviceId platform_gpu_id;
+    TF_CHECK_OK(
+        DeviceIdManager::TfToPlatformDeviceId(tf_gpu_id, &platform_gpu_id));
     int bus_id = BusIdForGPU(tf_gpu_id);
     DCHECK_GE(bus_id, 0);
     while (bus_id >= gpu_visitors_.size()) {
       gpu_visitors_.push_back({});
     }
-    GPUMemAllocator* sub_allocator = new GPUMemAllocator(
-        GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie(),
+    DeviceMemAllocator* sub_allocator = new DeviceMemAllocator(
+        DeviceIdUtil::ExecutorForPlatformDeviceId(GPUMachineManager(),
+                                                  platform_gpu_id)
+            .ValueOrDie(),
         platform_gpu_id,
         (options.per_process_gpu_memory_fraction() > 1.0 ||
          options.experimental().use_unified_memory()),
@@ -163,11 +167,11 @@ Allocator* GPUProcessState::GetGPUAllocator(const GPUOptions& options,
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 }
 
-SharedCounter* GPUProcessState::GPUAllocatorCounter(TfGpuId tf_gpu_id) {
+SharedCounter* GPUProcessState::GPUAllocatorCounter(TfDeviceId tf_gpu_id) {
   DCHECK(process_state_);
 #if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) || \
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
-  GpuIdUtil::CheckValidTfGpuId(tf_gpu_id);
+  DeviceIdUtil::CheckValidTfDeviceId(GPUMachineManager(), tf_gpu_id);
   mutex_lock l(mu_);
   if (tf_gpu_id.value() >= static_cast<int64>(gpu_allocators_.size())) {
     LOG(ERROR) << "Asked for counter for GPU allocator " << tf_gpu_id.value()
@@ -224,7 +228,9 @@ Allocator* GPUProcessState::GetGpuHostAllocator(int numa_node) {
   se::StreamExecutor* se = nullptr;
   for (int i = 0; i < static_cast<int>(gpu_allocators_.size()); ++i) {
     if (gpu_allocators_[i].allocator != nullptr) {
-      se = GpuIdUtil::ExecutorForTfGpuId(TfGpuId(i)).ValueOrDie();
+      se = DeviceIdUtil::ExecutorForTfDeviceId(GPUMachineManager(),
+                                               TfDeviceId(i))
+               .ValueOrDie();
       break;
     }
   }
@@ -238,9 +244,9 @@ Allocator* GPUProcessState::GetGpuHostAllocator(int numa_node) {
     while (gpu_host_free_visitors_.size() <= numa_node) {
       gpu_host_free_visitors_.push_back({});
     }
-    SubAllocator* sub_allocator =
-        new GpuHostAllocator(se, numa_node, gpu_host_alloc_visitors_[numa_node],
-                             gpu_host_free_visitors_[numa_node]);
+    SubAllocator* sub_allocator = new DeviceHostAllocator(
+        se, numa_node, gpu_host_alloc_visitors_[numa_node],
+        gpu_host_free_visitors_[numa_node]);
     // TODO(zheng-xq): evaluate whether 64GB by default is the best choice.
     int64 gpu_host_mem_limit_in_mb = -1;
     Status status = ReadInt64FromEnvVar("TF_GPU_HOST_MEM_LIMIT_IN_MB",
