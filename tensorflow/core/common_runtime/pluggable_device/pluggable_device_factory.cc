@@ -170,7 +170,7 @@ Status PluggableDeviceFactory::ListPhysicalDevices(
   int device_count = platform->VisibleDeviceCount();
   for (int i = 0; i < device_count; ++i) {
     const string device_name = strings::StrCat(
-        "/physical_device:", device_type_, ":", i, ":", platform_name_);
+        "/physical_device:", device_type_, ":", platform_name_, ":", i);
     devices->push_back(device_name);
   }
 
