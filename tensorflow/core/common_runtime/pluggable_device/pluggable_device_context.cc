@@ -55,8 +55,6 @@ Status PluggableDeviceContext::ThenExecute(Device* device, se::Stream* stream,
   return Status::OK();
 }
 
-bool PluggableDeviceContext::IsPluggableDevice() {
-  return true;
-}
+bool PluggableDeviceContext::IsPluggableDevice() { return true; }
 
 }  // namespace tensorflow

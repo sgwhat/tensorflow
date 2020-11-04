@@ -28,6 +28,7 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/eager/attr_builder.h"
 #include "tensorflow/core/common_runtime/eager/context.h"
 #include "tensorflow/core/common_runtime/eager/eager_operation.h"
+#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_plugin_init.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_server_lib.h"
 #include "tensorflow/core/framework/collective.h"
 #include "tensorflow/core/framework/node_def.pb.h"
@@ -45,7 +46,6 @@ limitations under the License.
 #include "tensorflow/core/platform/strcat.h"
 #include "tensorflow/core/protobuf/config.pb.h"
 #include "tensorflow/core/protobuf/tensorflow_server.pb.h"
-#include "tensorflow/core/common_runtime/pluggable_device/pluggable_device_plugin_init.h"
 
 using tensorflow::FunctionDef;
 using tensorflow::Node;
