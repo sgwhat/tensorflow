@@ -27,8 +27,8 @@ class DeviceHostAllocator : public SubAllocator {
  public:
   // Note: stream_exec cannot be null.
   explicit DeviceHostAllocator(se::StreamExecutor* stream_exec, int numa_node,
-                            const std::vector<Visitor>& alloc_visitors,
-                            const std::vector<Visitor>& free_visitors)
+                               const std::vector<Visitor>& alloc_visitors,
+                               const std::vector<Visitor>& free_visitors)
       : SubAllocator(alloc_visitors, free_visitors),
         stream_exec_(stream_exec),
         numa_node_(numa_node) {

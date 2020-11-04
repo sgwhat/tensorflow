@@ -60,7 +60,7 @@ class CopyTensor {
     }
   };
 
-  // Dynamic registered devices(PluggableDevices) use this function to 
+  // Dynamic registered devices(PluggableDevices) use this function to
   // register a copy function
   static void DynamicRegister(DeviceType sender_device_type,
                               DeviceType receiver_device_type,

@@ -35,12 +35,12 @@ static Status InitDeviceModule(void* dso_handle) {
   string device_type, platform_name;
   TF_RETURN_IF_ERROR(stream_executor::InitStreamExecutorPlugin(
       init_fn, device_type, platform_name));
-  
+
   DeviceFactory::Register(
       device_type, platform_name,
       new PluggableDeviceFactory(device_type, platform_name),
       220);  // priority 220
-  
+
   CopyTensor::DynamicRegister(
       DeviceType(device_type), DeviceType(device_type),
       PluggableDeviceUtil::DeviceToDeviceCopy);  // register the Copy tensor
@@ -62,10 +62,10 @@ static Status InitKernelModule(void* dso_handle) {
 Status RegisterPluggableDevicePlugin(void* dso_handle) {
   // Step1 Init Device Module
   TF_RETURN_IF_ERROR(InitDeviceModule(dso_handle));
-  
+
   // Step2 Init Kernel Module
   TF_RETURN_IF_ERROR(InitKernelModule(dso_handle));
-  
+
   return Status::OK();
 }
 
