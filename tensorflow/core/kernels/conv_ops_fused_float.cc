@@ -23,7 +23,7 @@ namespace tensorflow {
 
 // If we're using the alternative GEMM-based implementation of Conv2D for the
 // CPU implementation, don't register this EigenTensor-based version.
-#if !defined(USE_GEMM_FOR_CONV)
+#if !defined(USE_GEMM_FOR_CONV) && !defined(INTEL_MKL)
 TF_CALL_float(REGISTER_FUSED_CPU_CONV2D);
 #endif  // !USE_GEMM_FOR_CONV
 

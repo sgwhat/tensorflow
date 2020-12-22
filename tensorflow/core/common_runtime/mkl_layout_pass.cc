@@ -15,6 +15,7 @@ limitations under the License.
 
 // TODO(intel): Improve error handling in this file; instead of CHECK failing
 // all over the place, we should log an error and execute the original graph.
+#undef INTEL_MKL
 #ifdef INTEL_MKL
 
 #include "tensorflow/core/common_runtime/mkl_layout_pass.h"

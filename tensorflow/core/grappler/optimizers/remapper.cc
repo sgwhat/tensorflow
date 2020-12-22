@@ -845,7 +845,8 @@ bool FindFusedBatchNormEx(const RemapperContext& ctx, int node_index,
     // We fuse FusedBatchNorm on GPU or MKL CPU.
     if (!NodeIsOnGpu(fused_batch_norm_node_def)) return false;
 #else
-    if (DisableMKL()) return false;
+    // if (DisableMKL()) return false;
+    return false;
 #endif
 
     DataType t_dtype = GetDataTypeFromAttr(*fused_batch_norm_node_def, "T");

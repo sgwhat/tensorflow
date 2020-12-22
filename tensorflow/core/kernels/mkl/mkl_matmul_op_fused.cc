@@ -312,10 +312,9 @@ class MklFusedMatMulOp : public MklDnnMatMulOpBase<T, T> {
           .TypeConstraint<type>("T")                                          \
           .Label(mkl_op_registry::kMklLayoutDependentOpLabel),                \
       MklFusedMatMulOp<CPUDevice, type>);                                     \
-  REGISTER_KERNEL_BUILDER(Name("_MklNativeFusedMatMul")                       \
+  REGISTER_KERNEL_BUILDER(Name("_FusedMatMul")                                \
                               .Device(DEVICE_CPU)                             \
-                              .TypeConstraint<type>("T")                      \
-                              .Label(mkl_op_registry::kMklNameChangeOpLabel), \
+                              .TypeConstraint<type>("T"),                     \
                           MklFusedMatMulOp<CPUDevice, type, true>);
 TF_CALL_float(REGISTER_FUSEDMATMUL_MKL_SUPPORTED_KERNELS_TYPES);
 TF_CALL_bfloat16(REGISTER_FUSEDMATMUL_MKL_SUPPORTED_KERNELS_TYPES);

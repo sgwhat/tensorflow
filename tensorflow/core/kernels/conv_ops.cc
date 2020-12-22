@@ -605,7 +605,9 @@ class Conv2DOp : public BinaryOp<T> {
 // CPU implementation, don't register this EigenTensor-based version.
 #if !defined(USE_GEMM_FOR_CONV)
 TF_CALL_half(REGISTER_CPU);
+#if !defined(INTEL_MKL)
 TF_CALL_float(REGISTER_CPU);
+#endif
 TF_CALL_double(REGISTER_CPU);
 TF_CALL_int32(REGISTER_CPU);
 #endif  // USE_GEMM_FOR_CONV
