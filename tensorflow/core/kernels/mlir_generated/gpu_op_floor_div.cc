@@ -1,4 +1,4 @@
-/* Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,18 +12,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "tensorflow/core/kernels/mlir_generated/gpu_ops_base.h"
 
-#ifndef TENSORFLOW_COMPILER_XLA_SERVICE_MLIR_GPU_INJECT_ERRORS_PASS_H_
-#define TENSORFLOW_COMPILER_XLA_SERVICE_MLIR_GPU_INJECT_ERRORS_PASS_H_
+namespace tensorflow {
 
-#include "mlir/Pass/Pass.h"  // from @llvm-project
+GENERATE_AND_REGISTER_BINARY_KERNEL(FloorDiv, f16, DT_HALF, Eigen::half);
+GENERATE_AND_REGISTER_BINARY_KERNEL(FloorDiv, f32, DT_FLOAT, float);
+GENERATE_AND_REGISTER_BINARY_KERNEL(FloorDiv, f64, DT_DOUBLE, double);
 
-namespace mlir {
-
-// Returns a function pass that emits errors from all operations inside the
-// function.
-std::unique_ptr<OperationPass<FuncOp>> createInjectErrorsForTestingPass();
-
-}  // namespace mlir
-
-#endif  // TENSORFLOW_COMPILER_XLA_SERVICE_MLIR_GPU_INJECT_ERRORS_PASS_H_
+}  // namespace tensorflow
