@@ -55,25 +55,26 @@ using ::tensorflow::profiler::ScopedAnnotation;
 // Implementation note: HLO profiling is always enabled for GPU executables,
 // since we can use timers around thunks.
 GpuExecutable::GpuExecutable(GpuExecutable::Params params)
-    : Executable(std::move(params.hlo_module),
+    : Executable(std::move(params.debug_module),
                  std::move(params.hlo_profile_printer_data),
                  std::move(params.hlo_profile_index_map)),
       text_(std::move(params.asm_text)),
       binary_(std::move(params.binary)),
       gpu_version_(params.gpu_version),
       thunk_schedule_(std::move(params.thunk_schedule)),
+      module_name_(params.module_name),
+      output_shape_(params.output_shape),
       allocations_(std::move(params.allocations)),
       debug_buffer_assignment_(std::move(params.debug_buffer_assignment)),
+      entry_computation_profile_index_(params.entry_computation_profile_index),
       constants_(std::move(params.constants)),
       output_info_(std::move(params.output_info)) {
-  CHECK(has_module());
-  GpuDebugInfoManager::Get()->RegisterModule(module().name(), shared_module(),
+  GpuDebugInfoManager::Get()->RegisterModule(module_name_, shared_module(),
                                              debug_buffer_assignment_);
 }
 
 GpuExecutable::~GpuExecutable() {
-  CHECK(has_module());
-  GpuDebugInfoManager::Get()->UnregisterModule(module().name(), shared_module(),
+  GpuDebugInfoManager::Get()->UnregisterModule(module_name_, shared_module(),
                                                debug_buffer_assignment_);
 
   {
@@ -129,9 +130,9 @@ Status GpuExecutable::ExecuteThunks(
     HloExecutionProfile* hlo_execution_profile) {
   TF_RETURN_IF_ERROR(
       CheckCompatibilityWithServiceExecutableRunOptions(run_options));
-  GpuDebugInfoManager::Get()->OnModuleStart(module().name());
+  GpuDebugInfoManager::Get()->OnModuleStart(module_name_);
   auto cleanup = MakeCleanup(
-      [&]() { GpuDebugInfoManager::Get()->OnModuleStop(module().name()); });
+      [&]() { GpuDebugInfoManager::Get()->OnModuleStop(module_name_); });
 
   se::Stream* main_stream = run_options->stream();
   se::StreamExecutor* executor = main_stream->parent();
@@ -154,11 +155,11 @@ Status GpuExecutable::ExecuteThunks(
   }
 
   HloExecutionProfiler profiler(do_profile, hlo_execution_profile, main_stream,
-                                sub_streams, hlo_module_->entry_computation());
+                                sub_streams, entry_computation_profile_index_);
   uint64 start_micros = tensorflow::Env::Default()->NowMicros();
 
   tensorflow::profiler::TraceMe hlo_module_activity(
-      [&] { return absl::StrCat(hlo_module_->name(), ":XLA GPU module"); },
+      [&] { return absl::StrCat(module_name_, ":XLA GPU module"); },
       tensorflow::profiler::TraceMeLevel::kInfo);
 
   std::map<const Thunk*, std::unique_ptr<se::Event>> thunk_to_finish_event;
@@ -243,9 +244,8 @@ Status GpuExecutable::ExecuteThunks(
 
     // If hlo profiling was disabled then the cycle count is left empty.
     if (do_profile) {
-      profile->set_compute_cycle_count(
-          hlo_execution_profile->total_cycles_executed(
-              *module().entry_computation()));
+      profile->set_compute_cycle_count(hlo_execution_profile->GetCyclesTakenBy(
+          entry_computation_profile_index_));
     }
   }
 
@@ -279,18 +279,13 @@ GpuExecutable::ResolveConstantGlobals(se::Stream* stream) {
   TF_RETURN_IF_ERROR(executor->LoadModule(module_spec, &module_handle));
 
   for (const auto& info : constants_) {
-    const Literal& literal = info.content;
-
     TF_ASSIGN_OR_RETURN(auto global, executor->GetUntypedSymbol(
                                          info.symbol_name, module_handle));
     VLOG(3) << "Resolved global " << info.symbol_name << " to "
             << global.opaque();
 
-    CHECK(literal.shape().IsArray());
-    if (!ShouldEmitLiteralInLlvmIr(literal)) {
-      VLOG(3) << "H2D memcpy for constant with shape "
-              << ShapeUtil::HumanString(literal.shape());
-      stream->ThenMemcpy(&global, literal.untyped_data(), literal.size_bytes());
+    if (!info.content.empty()) {
+      stream->ThenMemcpy(&global, info.content.data(), info.content.size());
     }
 
     if (info.allocation_index != -1) {
@@ -396,8 +391,8 @@ StatusOr<ExecutionOutput> GpuExecutable::ExecuteAsyncOnStream(
     const ServiceExecutableRunOptions* run_options,
     std::vector<ExecutionInput> arguments,
     HloExecutionProfile* hlo_execution_profile) {
-  XLA_SCOPED_LOGGING_TIMER(absl::StrCat("GpuExecutable::ExecuteAsyncOnStream(",
-                                        module().name(), ")"));
+  XLA_SCOPED_LOGGING_TIMER(
+      absl::StrCat("GpuExecutable::ExecuteAsyncOnStream(", module_name_, ")"));
   se::DeviceMemoryAllocator* const memory_allocator = run_options->allocator();
   // Force synchronous execution if the allocator requires it.
   const bool block_host_until_done =
@@ -414,10 +409,8 @@ StatusOr<ExecutionOutput> GpuExecutable::ExecuteAsyncOnStream(
 
   se::StreamExecutor* executor = run_options->stream()->parent();
 
-  HloInstruction* root = hlo_module_->entry_computation()->root_instruction();
-  const Shape& root_shape = root->shape();
   auto device_ordinal = executor->device_ordinal();
-  ExecutionOutput result(/*on_device_shape=*/root->shape(), memory_allocator,
+  ExecutionOutput result(/*on_device_shape=*/output_shape_, memory_allocator,
                          device_ordinal);
 
   TF_ASSIGN_OR_RETURN(BufferAllocations buffer_allocations,
@@ -438,6 +431,9 @@ StatusOr<ExecutionOutput> GpuExecutable::ExecuteAsyncOnStream(
 
   for (auto& p : result.MutableResult()->buffers()) {
     const ShapeIndex& index = p.first;
+    if (!output_info_.contains(index)) {
+      continue;
+    }
     const OutputInfo& output_info = output_info_.at(index);
     const BufferAllocation* allocation =
         &allocations_[output_info.allocation_index];
@@ -482,7 +478,7 @@ StatusOr<ExecutionOutput> GpuExecutable::ExecuteAsyncOnStream(
         VLOG(3) << "Using copy-protection: aliasing is specified, but the "
                    "buffer is not donated; allocating a fresh buffer";
         int64 allocation_size =
-            ShapeUtil::ByteSizeOf(ShapeUtil::GetSubshape(root_shape, index));
+            ShapeUtil::ByteSizeOf(ShapeUtil::GetSubshape(output_shape_, index));
         TF_ASSIGN_OR_RETURN(
             se::OwningDeviceMemory allocated_buffer,
             memory_allocator->Allocate(device_ordinal, allocation_size));

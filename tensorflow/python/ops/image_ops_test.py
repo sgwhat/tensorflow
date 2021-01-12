@@ -4533,6 +4533,26 @@ class GifTest(test_util.TensorFlowTestCase):
         image = image_ops.decode_gif(gif)
         self.assertEqual(image.get_shape().as_list(), [None, None, None, 3])
 
+  def testAnimatedGif(self):
+    # Test if all frames in the animated GIF file is properly decoded.
+    with self.cached_session(use_gpu=True):
+      base = "tensorflow/core/lib/gif/testdata"
+      gif = io_ops.read_file(os.path.join(base, "pendulum_sm.gif"))
+      gt_frame0 = io_ops.read_file(os.path.join(base, "pendulum_sm_frame0.png"))
+      gt_frame1 = io_ops.read_file(os.path.join(base, "pendulum_sm_frame1.png"))
+      gt_frame2 = io_ops.read_file(os.path.join(base, "pendulum_sm_frame2.png"))
+
+      image = image_ops.decode_gif(gif)
+      frame0 = image_ops.decode_png(gt_frame0)
+      frame1 = image_ops.decode_png(gt_frame1)
+      frame2 = image_ops.decode_png(gt_frame2)
+      image, frame0, frame1, frame2 = self.evaluate([image, frame0, frame1,
+                                                     frame2])
+      # Compare decoded gif frames with ground-truth data.
+      self.assertAllEqual(image[0], frame0)
+      self.assertAllEqual(image[1], frame1)
+      self.assertAllEqual(image[2], frame2)
+
 
 class ConvertImageTest(test_util.TensorFlowTestCase):
 
@@ -5190,6 +5210,17 @@ class NonMaxSuppressionPaddedTest(test_util.TensorFlowTestCase,
         with test_util.run_functions_eagerly(run_func_eagerly):
           self.assertAllClose(selected_indices, [0, 2, 4])
           self.assertEqual(self.evaluate(num_valid), 3)
+
+  def testInvalidDtype(self):
+    boxes_np = [[4.0, 6.0, 3.0, 6.0],
+                [2.0, 1.0, 5.0, 4.0],
+                [9.0, 0.0, 9.0, 9.0]]
+    scores = [5.0, 6.0, 5.0]
+    max_output_size = 2**31
+    with self.assertRaisesRegex(
+        (TypeError, ValueError), "type int64 that does not match type int32"):
+      boxes = constant_op.constant(boxes_np)
+      image_ops.non_max_suppression_padded(boxes, scores, max_output_size)
 
 
 class NonMaxSuppressionWithOverlapsTest(test_util.TensorFlowTestCase):

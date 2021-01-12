@@ -481,13 +481,11 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
         {csinfo_.fused_batch_norm_grad_v3,
          mkl_op_registry::GetMklOpName(csinfo_.fused_batch_norm_grad_v3),
          CopyAttrsAll, FusedBatchNormV3Rewrite, GetRewriteCause()});
-#ifdef ENABLE_MKLDNN_V1
     rinfo_.push_back({csinfo_.fused_batch_norm_ex,
                       native_fmt ? csinfo_.mkl_native_fused_batch_norm_ex
                                  : csinfo_.mkl_fused_batch_norm_ex,
                       CopyAttrsAll, FusedBatchNormExRewrite,
                       GetRewriteCause()});
-#endif
     rinfo_.push_back({csinfo_.fused_conv2d,
                       native_fmt ? csinfo_.mkl_native_fused_conv2d
                                  : csinfo_.mkl_fused_conv2d,
@@ -673,14 +671,12 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
     rinfo_.push_back({csinfo_.requantize,
                       mkl_op_registry::GetMklOpName(csinfo_.requantize),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
-#ifdef ENABLE_MKLDNN_V1
     // Optimized TanhGrad support exists only in DNNL 1.x.
     rinfo_.push_back({csinfo_.tanh, mkl_op_registry::GetMklOpName(csinfo_.tanh),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
     rinfo_.push_back({csinfo_.tanh_grad,
                       mkl_op_registry::GetMklOpName(csinfo_.tanh_grad),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
-#endif  // ENABLE_MKLDNN_V1
     rinfo_.push_back({csinfo_.reshape,
                       mkl_op_registry::GetMklOpName(csinfo_.reshape),
                       CopyAttrsAll, AlwaysRewrite, GetRewriteCause()});
@@ -1514,7 +1510,7 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
 
   static bool MatMulRewrite(const Node* n) {
     DataType T;
-    GetNodeAttr(n->def(), "T", &T);
+    TF_CHECK_OK(GetNodeAttr(n->def(), "T", &T));
     if ((T == DT_FLOAT) || (T == DT_BFLOAT16)) {
       VLOG(2) << "Rewriting MatMul to _MklMatMul";
       return true;
@@ -1524,7 +1520,7 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
   // For oneDNN, only int32 is supported for axis data type
   static bool ConcatV2Rewrite(const Node* n) {
     DataType T;
-    GetNodeAttr(n->def(), "Tidx", &T);
+    TF_CHECK_OK(GetNodeAttr(n->def(), "Tidx", &T));
     return (T == DT_INT32);
   }
 

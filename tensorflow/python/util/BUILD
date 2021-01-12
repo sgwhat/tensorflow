@@ -39,6 +39,15 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+py_strict_library(
+    name = "core",
+    deps = [
+        ":tf_decorator",
+        ":tf_export",
+        ":tf_stack",
+    ],
+)
+
 # TODO(mdan): Move this utility outside of TF.
 cc_library(
     name = "kernel_registry",
@@ -73,6 +82,7 @@ tf_python_pybind_extension(
     hdrs = ["util.h"],
     module_name = "_pywrap_utils",
     deps = [
+        "//tensorflow/core/platform:platform_port",
         "//tensorflow/python:pybind11_lib",
         "//third_party/python_runtime:headers",
         "@pybind11",

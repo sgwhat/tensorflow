@@ -183,8 +183,9 @@ void IdentifyXlaShardingForComputationInputs(
                         builder->getStrArrayAttr(sharding_for_args));
 }
 
-// Returns XLA sharding from TPUPartitionedOutput op connected to a
-// `tf_device.cluster_func` result value.
+// Returns XLA sharding from TPUPartitionedOutput or TPUPartitionedInput (via
+// AssignVariableOp/resource write) op connected to a `tf_device.cluster_func`
+// result value.
 llvm::Optional<llvm::StringRef> GetXlaShardingFromResult(Value value) {
   if (!value.hasOneUse()) return llvm::None;
 
@@ -192,6 +193,12 @@ llvm::Optional<llvm::StringRef> GetXlaShardingFromResult(Value value) {
   if (auto partitioned_output =
           llvm::dyn_cast<TF::TPUPartitionedOutputOp>(user))
     return partitioned_output._XlaSharding();
+
+  if (auto assign_var = llvm::dyn_cast<TF::AssignVariableOp>(user))
+    if (auto partitioned_input =
+            llvm::dyn_cast_or_null<TF::TPUPartitionedInputOp>(
+                assign_var.resource().getDefiningOp()))
+      return partitioned_input._XlaSharding();
 
   return llvm::None;
 }
@@ -306,8 +313,8 @@ void IdentifyXlaShardingForTPUComputation(
       xla::sharding_builder::AssignDevice(0).SerializeAsString();
 
   bool use_spmd = false;
-  if (auto use_spmd_attr =
-          cluster_func.getAttrOfType<BoolAttr>("use_spmd_for_xla_partitioning"))
+  if (auto use_spmd_attr = cluster_func->getAttrOfType<BoolAttr>(
+          "use_spmd_for_xla_partitioning"))
     use_spmd = use_spmd_attr.getValue();
 
   IdentifyXlaShardingForComputationInputs(logical_core_0_sharding, use_spmd,

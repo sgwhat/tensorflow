@@ -232,11 +232,7 @@ REGISTER_OP("_FusedBatchNormEx")
     .Output("reserve_space_1: U")
     .Output("reserve_space_2: U")
     .Output("reserve_space_3: U")
-#ifdef ENABLE_MKLDNN_V1
     .Attr("T: {half, float, bfloat16}")
-#else
-    .Attr("T: {half, float}")
-#endif
     .Attr("U: {float}")
     .Attr("epsilon: float = 0.0001")
     .Attr("exponential_avg_factor: float = 1.0")
@@ -633,7 +629,9 @@ REGISTER_OP("_FusedDepthwiseConv2dNative")
     .Attr("leakyrelu_alpha: float = 0.2")
     // ---------------------------------------------------------------------- //
     .SetShapeFn(shape_inference::DepthwiseConv2DNativeShape);
+
 // --------------------------------------------------------------------------
+
 REGISTER_OP("Conv3D")
     .Input("input: T")
     .Input("filter: T")

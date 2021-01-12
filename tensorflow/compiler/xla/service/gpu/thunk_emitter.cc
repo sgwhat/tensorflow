@@ -115,18 +115,6 @@ std::unique_ptr<Thunk> ThunkEmitter::BuildGemmThunk(
       /*implements_whole_instruction=*/true);
 }
 
-std::unique_ptr<Thunk> ThunkEmitter::BuildInfeedThunk(
-    const HloInstruction* inst) {
-  CHECK_EQ(HloOpcode::kInfeed, inst->opcode());
-
-  ShapeTree<BufferAllocation::Slice> slices(inst->shape());
-  slices.ForEachMutableElement(
-      [&](const ShapeIndex& index, BufferAllocation::Slice* slice) {
-        *slice = GetAllocationSlice(*inst, index);
-      });
-  return absl::make_unique<InfeedThunk>(context_->GetThunkInfo(inst), slices);
-}
-
 std::unique_ptr<Thunk> ThunkEmitter::BuildOutfeedThunk(
     const HloInstruction* inst) {
   CHECK_EQ(HloOpcode::kOutfeed, inst->opcode());
@@ -239,11 +227,6 @@ Status ThunkEmitter::HandleTriangularSolve(HloInstruction* hlo) {
     AddThunkToThunkSequence(absl::make_unique<SequentialThunk>(
         context_->GetThunkInfo(hlo), std::move(thunks)));
   }
-  return Status::OK();
-}
-
-Status ThunkEmitter::HandleInfeed(HloInstruction* infeed) {
-  AddThunkToThunkSequence(BuildInfeedThunk(infeed));
   return Status::OK();
 }
 
