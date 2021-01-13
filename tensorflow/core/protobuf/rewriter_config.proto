@@ -175,6 +175,8 @@ message RewriterConfig {
 
   ScopedAllocatorOptions scoped_allocator_opts = 16;
 
+  Toggle use_plugin_optimizers = 30;
+
   // If non-empty, will use this as an alternative way to specify a list of
   // optimizations to turn on and the order of the optimizations (replacing the
   // meta-optimizer).

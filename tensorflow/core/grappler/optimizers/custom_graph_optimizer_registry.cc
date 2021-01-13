@@ -31,6 +31,47 @@ RegistrationMap* GetRegistrationMap() {
     registered_optimizers = new RegistrationMap;
   return registered_optimizers;
 }
+
+// This map is a global map for registered plugin optimizers. It contains the
+// device_type as its key, and an optimizer creator as the value.
+typedef std::unordered_map<string, PluginGraphOptimizerRegistry::Creator>
+    PluginRegistrationMap;
+PluginRegistrationMap* registered_plugin_optimizers = nullptr;
+PluginRegistrationMap* GetPluginRegistrationMap() {
+  if (registered_plugin_optimizers == nullptr)
+    registered_plugin_optimizers = new PluginRegistrationMap;
+  return registered_plugin_optimizers;
+}
+
+// This map is a global map for registered plugin configs. It contains the
+// device_type as its key, and ConfigsList as the value.
+typedef std::unordered_map<string, ConfigsList> PluginConfigMap;
+PluginConfigMap* plugin_config_map = nullptr;
+PluginConfigMap* GetPluginConfigMap() {
+  if (plugin_config_map == nullptr) plugin_config_map = new PluginConfigMap;
+  return plugin_config_map;
+}
+
+ConfigsList default_plugin_configs{
+    false,               // disable_model_pruning;
+    RewriterConfig::ON,  // implementation_selector;
+    RewriterConfig::ON,  // function_optimization;
+    RewriterConfig::ON,  // common_subgraph_elimination;
+    RewriterConfig::ON,  // arithmetic_optimization;
+    RewriterConfig::ON,  // debug_stripper;
+    RewriterConfig::ON,  // constant_folding;
+    RewriterConfig::ON,  // shape_optimization;
+    RewriterConfig::ON,  // auto_mixed_precision;
+    RewriterConfig::ON,  // auto_mixed_precision_mkl;
+    RewriterConfig::ON,  // pin_to_host_optimization;
+    RewriterConfig::ON,  // layout_optimizer;
+    RewriterConfig::ON,  // remapping;
+    RewriterConfig::ON,  // loop_optimization;
+    RewriterConfig::ON,  // dependency_optimization;
+    RewriterConfig::ON,  // auto_parallel;
+    RewriterConfig::ON,  // memory_optimization;
+    RewriterConfig::ON,  // scoped_allocator_optimization;
+};
 }  // namespace
 
 std::unique_ptr<CustomGraphOptimizer>
@@ -55,6 +96,78 @@ void CustomGraphOptimizerRegistry::RegisterOptimizerOrDie(
     LOG(FATAL) << "CustomGraphOptimizer is registered twice: " << name;
   }
   GetRegistrationMap()->insert({name, optimizer_creator});
+}
+
+std::vector<std::unique_ptr<CustomGraphOptimizer>>
+PluginGraphOptimizerRegistry::CreateOptimizer(
+    const std::set<string>& device_types) {
+  std::vector<std::unique_ptr<CustomGraphOptimizer>> optimizer_list;
+  for (auto it = GetPluginRegistrationMap()->begin();
+       it != GetPluginRegistrationMap()->end(); it++) {
+    if (device_types.find(it->first) == device_types.end()) continue;
+    LOG(INFO) << "Plugin optimizer for device_type " << it->first
+              << " is enabled.";
+    optimizer_list.emplace_back(
+        std::unique_ptr<CustomGraphOptimizer>(it->second()));
+  }
+  return optimizer_list;
+}
+
+void PluginGraphOptimizerRegistry::RegisterPluginOptimizerOrDie(
+    const Creator& optimizer_creator, const std::string& device_type,
+    ConfigsList& configs) {
+  auto it = GetPluginConfigMap()->find(device_type);
+  if (it != GetPluginConfigMap()->end()) {
+    LOG(FATAL) << "PluginGraphOptimizer with device_type " << device_type
+               << " is registered twice.";
+  }
+  GetPluginConfigMap()->insert({device_type, configs});
+  GetPluginRegistrationMap()->insert({device_type, optimizer_creator});
+}
+
+ConfigsList PluginGraphOptimizerRegistry::GetPluginConfigs(
+    bool use_plugin_optimizers, const std::set<string>& device_types) {
+  if (!use_plugin_optimizers) return default_plugin_configs;
+
+  ConfigsList ret_plugin_configs = default_plugin_configs;
+  for (auto device_type : device_types) {
+    const auto it = GetPluginConfigMap()->find(device_type);
+    if (it == GetPluginConfigMap()->end()) continue;
+    auto cur_plugin_configs = it->second;
+
+// If any of the plugin turns off a certain optimizer,
+// then the optimizer should be turned off;
+#define CONFIG_TOGGLE(CONFIG)                           \
+  if (cur_plugin_configs.CONFIG == RewriterConfig::OFF) \
+  ret_plugin_configs.CONFIG == RewriterConfig::OFF
+
+// If any of the plugin turns on `disable_model_pruning`,
+// then `disable_model_pruning` should be true;
+#define CONFIG_BOOL(CONFIG) \
+  if (cur_plugin_configs.CONFIG == true) ret_plugin_configs.CONFIG == true;
+
+    CONFIG_BOOL(disable_model_pruning);
+    CONFIG_TOGGLE(implementation_selector);
+    CONFIG_TOGGLE(function_optimization);
+    CONFIG_TOGGLE(common_subgraph_elimination);
+    CONFIG_TOGGLE(arithmetic_optimization);
+    CONFIG_TOGGLE(debug_stripper);
+    CONFIG_TOGGLE(constant_folding);
+    CONFIG_TOGGLE(shape_optimization);
+    CONFIG_TOGGLE(auto_mixed_precision);
+    CONFIG_TOGGLE(auto_mixed_precision_mkl);
+    CONFIG_TOGGLE(pin_to_host_optimization);
+    CONFIG_TOGGLE(layout_optimizer);
+    CONFIG_TOGGLE(remapping);
+    CONFIG_TOGGLE(loop_optimization);
+    CONFIG_TOGGLE(dependency_optimization);
+    CONFIG_TOGGLE(auto_parallel);
+    CONFIG_TOGGLE(memory_optimization);
+    CONFIG_TOGGLE(scoped_allocator_optimization);
+#undef CONFIG_BOOL
+#undef CONFIG_TOGGLE
+  }
+  return ret_plugin_configs;
 }
 
 }  // end namespace grappler

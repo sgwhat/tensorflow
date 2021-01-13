@@ -25,6 +25,27 @@ limitations under the License.
 namespace tensorflow {
 namespace grappler {
 
+typedef struct ConfigsList {
+  bool disable_model_pruning;
+  RewriterConfig_Toggle implementation_selector;
+  RewriterConfig_Toggle function_optimization;
+  RewriterConfig_Toggle common_subgraph_elimination;
+  RewriterConfig_Toggle arithmetic_optimization;
+  RewriterConfig_Toggle debug_stripper;
+  RewriterConfig_Toggle constant_folding;
+  RewriterConfig_Toggle shape_optimization;
+  RewriterConfig_Toggle auto_mixed_precision;
+  RewriterConfig_Toggle auto_mixed_precision_mkl;
+  RewriterConfig_Toggle pin_to_host_optimization;
+  RewriterConfig_Toggle layout_optimizer;
+  RewriterConfig_Toggle remapping;
+  RewriterConfig_Toggle loop_optimization;
+  RewriterConfig_Toggle dependency_optimization;
+  RewriterConfig_Toggle auto_parallel;
+  RewriterConfig_Toggle memory_optimization;
+  RewriterConfig_Toggle scoped_allocator_optimization;
+} ConfigsList;
+
 class CustomGraphOptimizerRegistry {
  public:
   static std::unique_ptr<CustomGraphOptimizer> CreateByNameOrNull(
@@ -37,6 +58,22 @@ class CustomGraphOptimizerRegistry {
   // This class is not thread-safe.
   static void RegisterOptimizerOrDie(const Creator& optimizer_creator,
                                      const string& name);
+};
+
+class PluginGraphOptimizerRegistry {
+ public:
+  static std::vector<std::unique_ptr<CustomGraphOptimizer>> CreateOptimizer(
+      const std::set<string>& device_types);
+
+  typedef std::function<CustomGraphOptimizer*()> Creator;
+
+  static ConfigsList GetPluginConfigs(bool use_plugin_optimizers,
+                                      const std::set<string>& device_types);
+  // Register plugin graph optimizer which can be called during program
+  // initialization. This class is not thread-safe.
+  static void RegisterPluginOptimizerOrDie(const Creator& optimizer_creator,
+                                           const std::string& device_type,
+                                           ConfigsList& configs);
 };
 
 class CustomGraphOptimizerRegistrar {
