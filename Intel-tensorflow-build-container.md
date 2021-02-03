@@ -1,15 +1,15 @@
 # Steps to generate a container with Intel® Optimization for TensorFlow
 
-This guide will help you generate a container with Intel's r2.3 branch.
+This guide will help you generate a container with Intel's icx-base branch build.
 
 ## Steps:
 
-1. Clone intel-tensorflow r2.4.0 branch:
+1. Clone intel-tensorflow icx-base branch:
 
     ```
-    $ git clone https://github.com/Intel-tensorflow/tensorflow.git --branch=r2.4.0 --single-branch
+    $ git clone https://github.com/Intel-tensorflow/tensorflow.git --branch=icx-base --single-branch
     $ cd tensorflow
-    $ git checkout v2.4.0
+    $ git checkout icx-base
     # Run "git log" and check for the right git hash
     ```
 
@@ -21,35 +21,27 @@ This guide will help you generate a container with Intel's r2.3 branch.
 
 3.  Run build-dev-container.sh by passing the following env parameters:
 
-    For AVX containers:
+    For ICX-SERVER containers:
 
     ```
     $ env  ROOT_CONTAINER=tensorflow/tensorflow \
     	ROOT_CONTAINER_TAG=devel \
-    	TF_DOCKER_BUILD_DEVEL_BRANCH=v2.4.0 \
+    	TF_DOCKER_BUILD_DEVEL_BRANCH=icx-base	 \
     	TF_REPO=https://github.com/Intel-tensorflow/tensorflow \
-    	TF_DOCKER_BUILD_VERSION=2.4.0 \
-    	BUILD_AVX_CONTAINERS=yes \
+    	BUILD_ICX_SERVER_CONTAINERS=yes \
     	BUILD_TF_V2_CONTAINERS=yes \    	
-    	BAZEL_VERSION=3.1.0 \    	
+    	BAZEL_VERSION=3.7.2 \    	
     	ENABLE_SECURE_BUILD=yes \
-            ENABLE_HOROVOD=yes \
-    	./build-dev-container.sh > ./container_build.log
-    ```
-
-    For AVX512 containers:
-
-    ```
-    $ env  ROOT_CONTAINER=tensorflow/tensorflow \
-    	ROOT_CONTAINER_TAG=devel \
-    	TF_DOCKER_BUILD_DEVEL_BRANCH=v2.4.0 \
-    	TF_REPO=https://github.com/Intel-tensorflow/tensorflow \
-    	TF_DOCKER_BUILD_VERSION=2.4.0 \
-    	BUILD_SKX_CONTAINERS=yes \
-    	BUILD_TF_V2_CONTAINERS=yes \    	
-    	BAZEL_VERSION=3.1.0 \    	
-    	ENABLE_SECURE_BUILD=yes \
-            ENABLE_HOROVOD=yes \
+        ENABLE_HOROVOD=yes \
+	BUILD_SSH=yes \
+	TF_NIGHTLY_FLAG=--nightly_flag \
+	ENABLE_GCC8=yes \
+	RELEASE_CONTAINER=yes \
+	OPENMPI_VERSION=openmpi-4.0.5 \
+	OPENMPI_DOWNLOAD_URL=https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz \
+	HOROVOD_VERSION=56183ca42c43aad7afd619f0cc8bc4842336f3ec \
+	INSTALL_HOROVOD_FROM_COMMIT=yes \
+	BUILD_SSH=yes \
     	./build-dev-container.sh > ./container_build.log
     ```  
 
@@ -57,7 +49,7 @@ This guide will help you generate a container with Intel's r2.3 branch.
     or wait until the build finishes and then open the log file <container_build.log> ...
 
     ```
-    INFO: Build completed successfully, 18811 total actions.
+	INFO: Build completed successfully, 17731 total actions.
     ```
 
     Below output indicates that the container has intel-optimized tensorflow:
@@ -68,22 +60,10 @@ This guide will help you generate a container with Intel's r2.3 branch.
 
 5.  Check if the image was built successfully and tag it:
 
-    AVX container:
+    ICX-SERVER container:
 
     ```
     $ docker images
-    intel-mkl/tensorflow:2.4.0-devel-mkl
-    $ docker tag intel-mkl/tensorflow:2.4.0-devel-mkl intel/intel-optimized-tensorflow:2.4.0-devel-mkl
+	intel-mkl/tensorflow:nightly-icx-server-devel-mkl
+    $ docker tag intel-mkl/tensorflow:nightly-icx-server-devel-mkl intel/intel-optimized-tensorflow:2.4.0-devel-mkl
     ```   
-
-    AVX512 container:
-
-    ```
-    $ docker images
-    intel-mkl/tensorflow:2.4.0-avx512-devel-mkl
-    
-    $ docker tag intel-mkl/tensorflow:2.4.0-avx512-devel-mkl intel/intel-optimized-tensorflow:2.4.0-avx512-devel-mkl
-    ``` 
-
-
-
