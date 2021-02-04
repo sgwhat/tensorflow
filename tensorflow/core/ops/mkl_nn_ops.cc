@@ -2072,6 +2072,7 @@ REGISTER_OP("_QuantizedFusedMatMulAndDequantize")
     .Attr("epsilon: float = 0.0001")
     // Attributes for the LeakyRelu ----------------------------------------- //
     .Attr("leakyrelu_alpha: float = 0.2")
+    .Attr("input_quant_mode: {'MIN_FIRST', 'SCALED'} = 'SCALED'")
     .SetShapeFn([](InferenceContext* c) {
       TF_RETURN_IF_ERROR(shape_inference::MatMulShape(c));
       ShapeHandle unused;
@@ -2207,6 +2208,7 @@ REGISTER_OP("_MklQuantizedFusedMatMulAndDequantize")
     .Attr("epsilon: float = 0.0001")
     // Attributes for the LeakyRelu ----------------------------------------- //
     .Attr("leakyrelu_alpha: float = 0.2")
+    .Attr("input_quant_mode: {'MIN_FIRST', 'SCALED'} = 'SCALED'")
     .SetShapeFn([](InferenceContext* c) {
       TF_RETURN_IF_ERROR(shape_inference::MatMulShape(c));
       ShapeHandle unused;
