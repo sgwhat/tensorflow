@@ -24,7 +24,6 @@ limitations under the License.
 #include <queue>
 #include <vector>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
@@ -33,6 +32,7 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/logging.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 namespace tensorflow {
 namespace {
@@ -963,6 +963,16 @@ class CombinedNonMaxSuppressionOp : public OpKernel {
                 errors::InvalidArgument("iou_threshold must be in [0, 1]"));
     int num_boxes = 0;
     const int num_classes = scores.dim_size(2);
+    // out_per_class is a heuristic below to limit the per_class max detections
+    // so that the amount of unnecessary IOU computations are reduced. Algorthm
+    // picks the top k detections out of a possible k*num_classes detections.
+    // The heuristic below assumes uniform dist of objects among classes
+    // and adds a buffer of a constant max_output_size/2 to accomodate for
+    // non-uniformity.
+    int guard_band = max_output_size.scalar<int>()()/4;
+    int num_classes_p = num_classes > 0 ? num_classes : 1;
+    int out_per_class =  !pad_per_class_ ? std::ceil(static_cast<float>(max_total_size_per_batch)/num_classes_p) + guard_band : max_output_size.scalar<int>()();
+    out_per_class = std::min(out_per_class, max_output_size.scalar<int>()());
     ParseAndCheckCombinedNMSBoxSizes(context, boxes, &num_boxes, num_classes);
     CheckCombinedNMSScoreSizes(context, num_boxes, scores);
 
@@ -970,7 +980,7 @@ class CombinedNonMaxSuppressionOp : public OpKernel {
       return;
     }
     BatchedNonMaxSuppressionOp(context, boxes, scores, num_boxes,
-                               max_size_per_class, max_total_size_per_batch,
+                               out_per_class, max_total_size_per_batch,
                                score_threshold_val, iou_threshold_val,
                                pad_per_class_, clip_boxes_);
   }
