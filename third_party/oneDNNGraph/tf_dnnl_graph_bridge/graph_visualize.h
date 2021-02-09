@@ -1,0 +1,59 @@
+/*******************************************************************************
+ * Copyright 2017-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
+
+#ifndef TF_DNNL_GRAPH_BRIDGE_GRAPH_VISUALIZE_H_
+#define TF_DNNL_GRAPH_BRIDGE_GRAPH_VISUALIZE_H_
+
+#include <ostream>
+
+#include "common.h"
+
+namespace tensorflow {
+
+namespace tf_dnnl_graph_bridge {
+
+// GraphToDot
+// Transforms a TensorFlow graph to a DOT file for rendering with graphviz
+std::string GraphToDot(Graph* graph, const std::string& title);
+
+// GraphToDotFile
+// Saves a TensorFlow graph into a DOT file for rendering with graphviz
+void GraphToDotFile(Graph* graph, const std::string& filename,
+                    const std::string& title);
+
+// GraphToPbTextFile
+// Saves a TensorFlow graph into a protobuf text
+void GraphToPbTextFile(Graph* graph, const std::string& filename);
+
+bool DumpAllGraphs();
+
+std::string DotFilename(std::string, int);
+
+std::string DotFilename(std::string kind, int idx, int sub_idx);
+
+std::string PbtxtFilename(std::string, int);
+
+std::string PbtxtFilename(std::string kind, int idx, int sub_idx);
+
+std::string GraphFilenamePrefix(std::string, int);
+
+std::string GraphFilenamePrefix(std::string, int, int);
+
+}  // namespace tf_dnnl_graph_bridge
+
+}  // namespace tensorflow
+
+#endif  // TF_DNNL_GRAPH_BRIDGE_GRAPH_VISUALIZE_H_

@@ -1,0 +1,6 @@
+
+# Remember that the last applicable rule for any given file is the only one
+# that applies.
+
+# Default rule: @diyessi @nbpatel get everything.
+*                                   @diyessi @nbpatel
