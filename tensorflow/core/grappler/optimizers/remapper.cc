@@ -24,12 +24,15 @@ limitations under the License.
 #include "tensorflow/core/grappler/optimizers/constant_folding.h"
 #include "tensorflow/core/grappler/utils.h"
 #include "tensorflow/core/grappler/utils/graph_view.h"
+#include "tensorflow/core/grappler/utils/pattern_utils.h"
 #include "tensorflow/core/grappler/utils/symbolic_shapes.h"
 #include "tensorflow/core/grappler/utils/topological_sort.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/util.h"
+
+#include <cmath>
 
 #if GOOGLE_CUDA
 #include "third_party/gpus/cudnn/cudnn.h"
@@ -1053,6 +1056,154 @@ void CopyMatMulAttributes(const NodeDef& matmul, NodeDef* fused_matmul,
   }
 }
 
+bool FindConv2DWithBiasAndMulAndMaximum(
+    RemapperContext* ctx, int node_index,
+    std::map<string, int>* matched_nodes_map, std::vector<bool>* remove_nodes) {
+  using utils::MatchingDirection;
+  using utils::NodeStatus;
+  // clang-format off
+  //                Convert Mul+Maximum to LeakyRelu
+  //          From Graph                          To Graph
+  //          -----------                         ---------
+  //    Conv2D  <-  Filter(const)           Conv2D  <-  Filter(const)
+  //      !                                   !
+  //      V                                   V
+  //    BiasAdd <-  bias(const)             BiasAdd <-  bias(const)
+  //      !                                   !
+  //      V                                   !
+  //  ---- ----                               !
+  //  !       !                               !
+  //  !       V                               !
+  //  !      Mul  <- y(const=0.2)             !
+  //  !       !                               !
+  //  !       V                               !
+  //  ---   ---                               !
+  //     !  !                                 !
+  //     !  !                                 !
+  //     V  V                                 V
+  //    Maximum                             LeakyRelu (with attribute 0.2)
+  //      !                                   !
+  //      V                                   V
+  //    Conv2D  <-  Filter(const)           Conv2D  <-  Filter(const)
+  utils::OpTypePattern mulmax_pattern{ "Maximum", "maximum_to_leakyrelu", NodeStatus::kReplace,
+    {
+      { "Mul", "mul", NodeStatus::kRemove,
+        {
+          {"BiasAdd", "biasadd", NodeStatus::kRemain},
+          {"Const", "mul_y", NodeStatus::kRemain}
+        }
+      },
+      { "BiasAdd", "biasadd", NodeStatus::kRemain,
+        {
+          {"Conv2D", "conv2d", NodeStatus::kRemain},
+          {"Const", "biases", NodeStatus::kRemain}
+        }
+      }
+    }
+  };
+
+  // clang-format on
+  std::set<int> remove_node_indices;
+  utils::SubGraphMatcher<MatchingDirection::kFollowInputs> graph_matcher(
+      &(ctx->graph_view));
+  bool found_op_type_match = false;
+
+  found_op_type_match = graph_matcher.GetMatchedNodes(
+      mulmax_pattern, ctx->graph_view.GetNode(node_index), matched_nodes_map,
+      &remove_node_indices);
+
+  // Add additional condition here
+  if (found_op_type_match) {
+    VLOG(1) << "\nMul+Max found. Fusing it as LeakyRelu\n";
+
+    // All conditions are satisfied now.
+    for (const auto& node_idx : remove_node_indices) {
+      (*remove_nodes)[node_idx] = true;
+    }
+  }
+
+  return found_op_type_match;
+}
+
+Status ReplaceMulAndMaximumWithLeakyRelu(
+    RemapperContext* ctx, std::map<string, int>& node_label_to_index,
+    std::vector<bool>* invalidated_nodes) {
+
+  // Step 0: Extract the value from old_mul_y_node - a const node.
+  // ------------------------------------------------------------
+  auto* old_mul_y_node =
+      ctx->graph_view.GetNode(node_label_to_index["mul_y"])->node();
+  auto& old_mul_y_attr = old_mul_y_node->attr();
+  const TensorProto& old_mul_y_tensor_proto =
+      old_mul_y_attr.at("value").tensor();
+  Tensor temp_old_mul_y_tensor(old_mul_y_tensor_proto.dtype(),
+                 old_mul_y_tensor_proto.tensor_shape());
+  CHECK(temp_old_mul_y_tensor.FromProto(old_mul_y_tensor_proto));
+  float* old_mul_y_value = static_cast<float*>(temp_old_mul_y_tensor.flat<float>().data());
+
+  // 0 < old_mul_y_value  < 1; if not it is not leaky relu and skip this fusion
+  if (isgreater(*old_mul_y_value,0) && isgreater(1, *old_mul_y_value)) {
+    // Step 1: Fuse the node maximum+mul to LeakyRelu
+    // -----------------------------------------------
+    auto* old_maximum_node =
+        ctx->graph_view.GetNode(node_label_to_index["maximum_to_leakyrelu"])
+            ->node();
+  
+    NodeDef fused_node;
+    // Fused node should have the name of terminal node of the fusion.
+    fused_node.set_name(old_maximum_node->name());
+    fused_node.set_op("LeakyRelu");
+    fused_node.set_device(old_maximum_node->device());
+    fused_node.add_input(
+        old_maximum_node->input(1));  // input(0)is removed mulnode
+    auto* fused_node_attr = fused_node.mutable_attr();
+    (*fused_node_attr)["T"] = old_maximum_node->attr().at("T");
+  
+    // Extract the value from old_mul_y_node - a cost node.
+    auto* old_mul_y_node =
+        ctx->graph_view.GetNode(node_label_to_index["mul_y"])->node();
+    auto& old_mul_y_attr = old_mul_y_node->attr();
+    const TensorProto& old_mul_y_tensor_proto =
+        old_mul_y_attr.at("value").tensor();
+    Tensor temp_old_mul_y_tensor(old_mul_y_tensor_proto.dtype(),
+                   old_mul_y_tensor_proto.tensor_shape());
+    CHECK(temp_old_mul_y_tensor.FromProto(old_mul_y_tensor_proto));
+    float* old_mul_y_value = static_cast<float*>(temp_old_mul_y_tensor.flat<float>().data());
+  
+    // Save old_mul_y_node value as alpha value to leakyrelu node.
+    SetAttrValue(*old_mul_y_value, &(*fused_node_attr)["alpha"]);
+  
+    utils::Mutation* mutation = ctx->graph_view.GetMutationBuilder();
+    Status status;
+    mutation->AddNode(std::move(fused_node), &status);
+    TF_RETURN_IF_ERROR(status);
+    TF_RETURN_IF_ERROR(mutation->Apply());
+    (*invalidated_nodes)[node_label_to_index["maximum_to_leakyrelu"]] = true;
+  
+    // Step 2: Remove BiasAdd to mul for conv2dBiasAddLeakyRelu Fusion
+    // ----------------------------------------------------------------
+    auto* old_mul_node =
+        ctx->graph_view.GetNode(node_label_to_index["mul"])->node();
+  
+    NodeDef new_mul_node;
+    // Fused node should have the name of terminal node of the fusion.
+    new_mul_node.set_name(old_mul_node->name());
+    new_mul_node.set_op(old_mul_node->op());
+    new_mul_node.set_device(old_mul_node->device());
+    new_mul_node.add_input(
+        old_mul_node->input(1));  // input(0)is removed BiasAddnode
+    auto* mul_node_attr1 = new_mul_node.mutable_attr();
+    (*mul_node_attr1)["T"] = old_mul_node->attr().at("T");
+  
+    utils::Mutation* mutation1 = ctx->graph_view.GetMutationBuilder();
+    mutation1->AddNode(std::move(new_mul_node), &status);
+    TF_RETURN_IF_ERROR(status);
+    TF_RETURN_IF_ERROR(mutation1->Apply());
+    (*invalidated_nodes)[node_label_to_index["mul"]] = true;
+  }
+  return Status::OK();
+}
+
 void SetFusedOpAttributes(NodeDef* fused,
                           const absl::Span<const absl::string_view> fused_ops,
                           int num_args = 1, float epsilon = 0.0) {
@@ -1856,14 +2007,16 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
       ctx.inferred_graph_properties = true;
     }
 
-    // Remap {Conv2D,DepthwiseConv2D,MatMul}+BiasAdd into the
-    // _Fused{Conv2D,DepthwiseConv2dNative,MatMul}
-    ContractionWithBiasAdd contract_with_bias;
-    if (allow_non_differentiable_rewrites &&
-        FindContractionWithBias(ctx, i, &contract_with_bias)) {
-      TF_RETURN_IF_ERROR(AddFusedContractionNode(
-          &ctx, contract_with_bias, &invalidated_nodes, &nodes_to_delete));
-      continue;
+    // Note: Keep this fusion before ContractionWithBiasAddAndActivation
+    // Conv2D + BiasAdd + Mul + Max     to
+    // Conv2D + BiasAdd + LeakyRelu conversion
+    std::map<string, int> matched_nodes_map_for_mulmax;
+    if (FindConv2DWithBiasAndMulAndMaximum(
+            &ctx, i, &matched_nodes_map_for_mulmax, &nodes_to_delete)) {
+      TF_RETURN_IF_ERROR(ReplaceMulAndMaximumWithLeakyRelu(
+          &ctx, matched_nodes_map_for_mulmax, &invalidated_nodes));
+      // We need to stay in current Activation Node for
+      // ContractionWithBiasAddAndActivation fusion. So do not "continue";
     }
 
     // Remap {Conv2D,DepthwiseConv2D,MatMul}+BiasAdd+Activation into the
@@ -1875,6 +2028,16 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
       TF_RETURN_IF_ERROR(
           AddFusedContractionNode(&ctx, contract_with_bias_and_activation,
                                   &invalidated_nodes, &nodes_to_delete));
+      continue;
+    }
+
+    // Remap {Conv2D,DepthwiseConv2D,MatMul}+BiasAdd into the
+    // _Fused{Conv2D,DepthwiseConv2dNative,MatMul}
+    ContractionWithBiasAdd contract_with_bias;
+    if (allow_non_differentiable_rewrites &&
+        FindContractionWithBias(ctx, i, &contract_with_bias)) {
+      TF_RETURN_IF_ERROR(AddFusedContractionNode(
+          &ctx, contract_with_bias, &invalidated_nodes, &nodes_to_delete));
       continue;
     }
 

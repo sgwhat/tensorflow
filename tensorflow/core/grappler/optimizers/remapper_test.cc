@@ -390,6 +390,138 @@ TEST_F(RemapperTest, FuseConv2DWithBias) {
   test::ExpectTensorNear<float>(tensors[0], tensors_expected[0], 1e-6);
 }
 
+TEST_F(RemapperTest, FuseConv2DWithBiasAndMulAndMaximumAlpha0to1) {
+  using ::tensorflow::ops::Placeholder;
+
+  tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+  auto input_shape = ops::Placeholder::Shape({8, 32, 32, 3});
+  auto filter_shape = ops::Placeholder::Shape({1, 1, 3, 128});
+  auto bias_shape = ops::Placeholder::Shape({128});
+  auto mul_shape = ops::Placeholder::Shape({1});
+
+  auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+  auto filter = Placeholder(s.WithOpName("filter"), DT_FLOAT, filter_shape);
+  auto bias = ops::Const(s.WithOpName("bias"), 1.0f, {128});
+  auto muly = ops::Const(s.WithOpName("y"), 0.2f, {1});
+
+  std::vector<int> strides = {1, 1, 1, 1};
+  auto conv = ops::Conv2D(s.WithOpName("conv"), input, filter, strides, "SAME");
+  auto bias_add = ops::BiasAdd(s.WithOpName("bias_add"), conv, bias);
+  auto mul = ops::Mul(s.WithOpName("mul"), bias_add, muly);
+  auto maximum = ops::Maximum(s.WithOpName("maximum"), mul, bias_add);
+  auto fetch = ops::Identity(s.WithOpName("fetch"), maximum);
+
+  auto input_t = GenerateRandomTensor<DT_FLOAT>({8, 32, 32, 3});
+  auto filter_t = GenerateRandomTensor<DT_FLOAT>({1, 1, 3, 128});
+
+  GrapplerItem item;
+  item.fetch = {"fetch"};
+  item.feed = {{"input", input_t}, {"filter", filter_t}};
+  TF_ASSERT_OK(s.ToGraphDef(&item.graph));
+
+  // Place all nodes on CPU.
+  for (int i = 0; i < item.graph.node_size(); ++i) {
+    item.graph.mutable_node(i)->set_device("/device:CPU:0");
+  }
+
+  Remapper optimizer(RewriterConfig::ON);
+  GraphDef output;
+  TF_ASSERT_OK(optimizer.Optimize(nullptr, item, &output));
+
+  int found = 0;
+  for (const NodeDef& node : output.node()) {
+    if (node.name() == "maximum") {
+      EXPECT_EQ(node.op(), "_FusedConv2D");
+      EXPECT_EQ(node.input_size(), 3);
+      EXPECT_EQ(node.input(0), "input");
+      EXPECT_EQ(node.input(1), "filter");
+
+      EXPECT_EQ(node.attr().at("num_args").i(), 1);
+      EXPECT_EQ(node.input(2), "bias");
+
+      const auto fused_ops = node.attr().at("fused_ops").list().s();
+      ASSERT_EQ(fused_ops.size(), 2);
+      EXPECT_EQ(fused_ops[0], "BiasAdd");
+      EXPECT_EQ(fused_ops[1], "LeakyRelu");
+      found++;
+    }
+  }
+  EXPECT_EQ(found, 1);
+
+  auto tensors_expected = EvaluateNodes(item.graph, item.fetch, item.feed);
+  ASSERT_EQ(tensors_expected.size(), 1);
+  auto tensors = EvaluateNodes(output, item.fetch, item.feed);
+  ASSERT_EQ(tensors.size(), 1);
+  test::ExpectTensorNear<float>(tensors[0], tensors_expected[0], 1e-6);
+}
+/*
+TEST_F(RemapperTest, FuseConv2DWithBiasAndMulAndMaximumAlphaAbove1) {
+  using ::tensorflow::ops::Placeholder;
+
+  tensorflow::Scope s = tensorflow::Scope::NewRootScope();
+
+  auto input_shape = ops::Placeholder::Shape({8, 32, 32, 3});
+  auto filter_shape = ops::Placeholder::Shape({1, 1, 3, 128});
+  auto bias_shape = ops::Placeholder::Shape({128});
+  auto mul_shape = ops::Placeholder::Shape({1});
+
+  auto input = Placeholder(s.WithOpName("input"), DT_FLOAT, input_shape);
+  auto filter = Placeholder(s.WithOpName("filter"), DT_FLOAT, filter_shape);
+  auto bias = ops::Const(s.WithOpName("bias"), 1.0f, {128});
+  auto muly = ops::Const(s.WithOpName("y"), 1.2f, {1});
+
+  std::vector<int> strides = {1, 1, 1, 1};
+  auto conv = ops::Conv2D(s.WithOpName("conv"), input, filter, strides, "SAME");
+  auto bias_add = ops::BiasAdd(s.WithOpName("bias_add"), conv, bias);
+  auto mul = ops::Mul(s.WithOpName("mul"), bias_add, muly);
+  auto maximum = ops::Maximum(s.WithOpName("maximum"), mul, bias_add);
+  auto fetch = ops::Identity(s.WithOpName("fetch"), maximum);
+
+  auto input_t = GenerateRandomTensor<DT_FLOAT>({8, 32, 32, 3});
+  auto filter_t = GenerateRandomTensor<DT_FLOAT>({1, 1, 3, 128});
+
+  GrapplerItem item;
+  item.fetch = {"fetch"};
+  item.feed = {{"input", input_t}, {"filter", filter_t}};
+  TF_ASSERT_OK(s.ToGraphDef(&item.graph));
+
+  // Place all nodes on CPU.
+  for (int i = 0; i < item.graph.node_size(); ++i) {
+    item.graph.mutable_node(i)->set_device("/device:CPU:0");
+  }
+
+  Remapper optimizer(RewriterConfig::ON);
+  GraphDef output;
+  TF_ASSERT_OK(optimizer.Optimize(nullptr, item, &output));
+
+  int found = 0;
+  for (const NodeDef& node : output.node()) {
+    if (node.name() == "maximum") {
+      EXPECT_EQ(node.op(), "_FusedConv2D");
+      EXPECT_EQ(node.input_size(), 3);
+      EXPECT_EQ(node.input(0), "input");
+      EXPECT_EQ(node.input(1), "filter");
+
+      EXPECT_EQ(node.attr().at("num_args").i(), 1);
+      EXPECT_EQ(node.input(2), "bias");
+
+      const auto fused_ops = node.attr().at("fused_ops").list().s();
+      ASSERT_EQ(fused_ops.size(), 1);
+      EXPECT_EQ(fused_ops[0], "BiasAdd");
+      found++;
+    }
+  }
+  EXPECT_EQ(found, 0);
+
+  auto tensors_expected = EvaluateNodes(item.graph, item.fetch, item.feed);
+  ASSERT_EQ(tensors_expected.size(), 1);
+  auto tensors = EvaluateNodes(output, item.fetch, item.feed);
+  ASSERT_EQ(tensors.size(), 1);
+  test::ExpectTensorNear<float>(tensors[0], tensors_expected[0], 1e-6);
+}
+*/
+
 class RemapperFuseMatMulWithBiasTest : public RemapperTest {
  public:
   template <DataType DTYPE>
@@ -1005,3 +1137,4 @@ TEST_F(RemapperTest, FuseConv2DWithSqueezeAndBias) {
 
 }  // namespace grappler
 }  // namespace tensorflow
+

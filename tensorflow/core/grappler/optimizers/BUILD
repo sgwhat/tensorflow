@@ -881,6 +881,7 @@ tf_kernel_library(
         "//tensorflow/core/grappler:utils",
         "//tensorflow/core/grappler/costs:graph_properties",
         "//tensorflow/core/grappler/utils:graph_view",
+	"//tensorflow/core/grappler/utils:pattern_utils",
         "//tensorflow/core/grappler/utils:symbolic_shapes",
         "//tensorflow/core/grappler/utils:topological_sort",
     ] + if_mkl(["//tensorflow/core/graph:mkl_graph_util"]),
