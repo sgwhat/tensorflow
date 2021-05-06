@@ -61,6 +61,8 @@ Third party programs and their corresponding required notices and/or license ter
     
     tensorboard
 
+    tensorboard-data-server
+
     tensorboard_plugin_wit
     
     tensorflow
