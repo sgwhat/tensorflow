@@ -17,6 +17,8 @@ Third party programs and their corresponding required notices and/or license ter
    aws-sdk-cpp
    
    com_github_googlecloudplatform_google_cloud_cpp
+
+   dataclasses
    
    dlpack
    Copyright 2017 by Contributors.
