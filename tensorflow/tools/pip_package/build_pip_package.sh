@@ -145,6 +145,8 @@ function prepare_src() {
       bazel-bin/tensorflow/tools/pip_package/simple_console_for_window_unzip/runfiles/org_tensorflow \
       "${XLA_AOT_RUNTIME_SOURCES}/"
     RUNFILES=bazel-bin/tensorflow/tools/pip_package/simple_console_for_window_unzip/runfiles/org_tensorflow
+    cp bazel-bin/external/llvm_openmp/libiomp5md.dll ${TMPDIR}/tensorflow/python
+    cp bazel-bin/external/llvm_openmp/libiomp5md.dll.if.lib ${TMPDIR}/tensorflow/python
   else
     RUNFILES=bazel-bin/tensorflow/tools/pip_package/build_pip_package.runfiles/org_tensorflow
     if [ -d bazel-bin/tensorflow/tools/pip_package/build_pip_package.runfiles/org_tensorflow/external ]; then
