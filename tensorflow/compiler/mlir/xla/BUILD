@@ -2,6 +2,12 @@ load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
 load("//third_party/mlir:tblgen.bzl", "gentbl")
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary", "tf_cc_test", "tf_native_cc_binary")
 load("//tensorflow:tensorflow.bzl", "get_compatible_with_cloud")
+load("//tensorflow:tensorflow.bzl", "if_windows")
+load(
+    "@org_tensorflow//third_party/llvm_openmp:openmp.bzl",
+    "windows_llvm_openmp_deps",
+    "windows_llvm_openmp_linkopts",
+)
 
 package(
     default_visibility = [":friends"],
@@ -481,7 +487,7 @@ tf_native_cc_binary(
         "@llvm-project//llvm:TableGen",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TableGen",
-    ],
+    ] + if_windows(windows_llvm_openmp_deps()),
 )
 
 gentbl(

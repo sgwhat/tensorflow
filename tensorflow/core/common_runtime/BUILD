@@ -40,6 +40,12 @@ load(
     "//third_party/mkl:build_defs.bzl",
     "if_mkl",
 )
+load("//tensorflow:tensorflow.bzl", "if_windows")
+load(
+    "@org_tensorflow//third_party/llvm_openmp:openmp.bzl",
+    "windows_llvm_openmp_deps",
+    "windows_llvm_openmp_linkopts",
+)
 
 default_package_visibility = [
     "//tensorflow:internal",
@@ -90,7 +96,8 @@ cc_library(
         ":core_cpu",
         "//tensorflow/core/common_runtime/gpu:gpu_runtime",
         "//tensorflow/core/common_runtime/pluggable_device:pluggable_device_runtime",
-    ] + if_libtpu(["//tensorflow/core/tpu:tpu_runtime"]),
+    ] + if_libtpu(["//tensorflow/core/tpu:tpu_runtime"])
+    + if_windows(windows_llvm_openmp_deps()),
 )
 
 filegroup(
@@ -1213,7 +1220,11 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
-    ],
+    ] + if_windows(windows_llvm_openmp_deps()),
+    linkopts = select({
+        "//tensorflow:windows": [windows_llvm_openmp_linkopts()],
+        "//conditions:default": [],
+        }),
 )
 
 cc_library(
@@ -1543,7 +1554,11 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
-    ] + if_mkl([":mkl_cpu_allocator"]),
+    ] + if_mkl([":mkl_cpu_allocator"]) + if_windows(windows_llvm_openmp_deps()),
+    linkopts = select({
+        "//tensorflow:windows": [windows_llvm_openmp_linkopts()],
+        "//conditions:default": [],
+        }),
 )
 
 cc_library(

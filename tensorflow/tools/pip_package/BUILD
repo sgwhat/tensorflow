@@ -6,6 +6,11 @@ load("//third_party/mkl:build_defs.bzl", "if_enable_mkl", "if_mkl", "if_mkl_ml")
 load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 load("@local_config_syslibs//:build_defs.bzl", "if_not_system_lib")
 load("//tensorflow/core/platform:build_config_root.bzl", "tf_additional_license_deps")
+load(
+    "@org_tensorflow//third_party/llvm_openmp:openmp.bzl",
+    "windows_llvm_openmp_deps",
+    "windows_llvm_openmp_linkopts",
+)
 
 package(default_visibility = ["//visibility:private"])
 
@@ -296,7 +301,8 @@ sh_binary(
            select({
                "//tensorflow:dynamic_loaded_kernels": DYNAMIC_LOADED_KERNELS,
                "//conditions:default": [],
-           }) + if_mkl_ml(["//third_party/mkl:intel_binary_blob"]),
+           }) + if_mkl_ml(["//third_party/mkl:intel_binary_blob"])
+           + if_windows(windows_llvm_openmp_deps()),
 )
 
 # A genrule for generating a marker file for the pip package on Windows

@@ -41,6 +41,11 @@ load(
     "if_mkldnn_aarch64_acl",
     "if_mkldnn_openmp",
 )
+load(
+    "//third_party/llvm_openmp:openmp.bzl",
+    "windows_llvm_openmp_deps",
+    "windows_llvm_openmp_linkopts",
+)
 load("@bazel_skylib//lib:new_sets.bzl", "sets")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
@@ -397,7 +402,7 @@ def tf_openmp_copts():
         # "//third_party/mkl:build_with_mkl_windows_openmp": ["/openmp"],
         # copybara:uncomment_end_and_comment_begin
         "@org_tensorflow//third_party/mkl:build_with_mkl_lnx_openmp": ["-fopenmp"],
-        "@org_tensorflow//third_party/mkl:build_with_mkl_windows_openmp": ["/openmp"],
+        "@org_tensorflow//third_party/mkl:build_with_mkl_windows_openmp": ["/openmp:llvm"],
         # copybara:comment_end
         "//conditions:default": [],
     })
@@ -762,7 +767,7 @@ def tf_native_cc_binary(
         name = name,
         copts = copts,
         linkopts = select({
-            clean_dep("//tensorflow:windows"): [],
+            clean_dep("//tensorflow:windows"): [windows_llvm_openmp_linkopts()],
             clean_dep("//tensorflow:macos"): [
                 "-lm",
             ],
@@ -1097,7 +1102,7 @@ def tf_cc_test(
             clean_dep("//tensorflow:android"): [
                 "-pie",
             ],
-            clean_dep("//tensorflow:windows"): [],
+            clean_dep("//tensorflow:windows"): [windows_llvm_openmp_linkopts()],
             clean_dep("//tensorflow:macos"): [
                 "-lm",
             ],
@@ -2028,14 +2033,14 @@ def pywrap_tensorflow_macro(
             "-Wl,-w",
             "-Wl,-exported_symbols_list,$(location %s.lds)" % vscriptname,
         ],
-        clean_dep("//tensorflow:windows"): [],
+        clean_dep("//tensorflow:windows"): [windows_llvm_openmp_linkopts()],
         "//conditions:default": [
             "-Wl,--version-script",
             "$(location %s.lds)" % vscriptname,
         ],
     })
     extra_deps += select({
-        clean_dep("//tensorflow:windows"): [],
+        clean_dep("//tensorflow:windows"): windows_llvm_openmp_deps(),
         "//conditions:default": [
             "%s.lds" % vscriptname,
         ],
@@ -2763,7 +2768,8 @@ def tf_python_pybind_extension(
         features = features,
         copts = copts,
         hdrs = hdrs,
-        deps = deps + tf_binary_pybind_deps() + if_mkl_ml(["//third_party/mkl:intel_binary_blob"]),
+        deps = deps + tf_binary_pybind_deps() + if_mkl_ml(["//third_party/mkl:intel_binary_blob"])
+            + if_windows(windows_llvm_openmp_deps()),
         defines = defines,
         visibility = visibility,
         link_in_framework = True,
