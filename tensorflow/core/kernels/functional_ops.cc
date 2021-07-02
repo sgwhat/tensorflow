@@ -337,21 +337,32 @@ class CaseOp : public AsyncOpKernel {
 REGISTER_KERNEL_BUILDER(Name("_If").Device(DEVICE_CPU), IfOp);
 REGISTER_KERNEL_BUILDER(Name("_If").Device(DEVICE_GPU).HostMemory("cond"),
                         IfOp);
+REGISTER_KERNEL_BUILDER(Name("_If").Device(DEVICE_DEFAULT).HostMemory("cond"),
+                        IfOp);
 
 REGISTER_KERNEL_BUILDER(Name("If").Device(DEVICE_CPU), IfOp);
 REGISTER_KERNEL_BUILDER(Name("If").Device(DEVICE_GPU).HostMemory("cond"), IfOp);
+REGISTER_KERNEL_BUILDER(Name("If").Device(DEVICE_DEFAULT).HostMemory("cond"),
+                        IfOp);
 
 REGISTER_KERNEL_BUILDER(Name("Case").Device(DEVICE_CPU), CaseOp);
 REGISTER_KERNEL_BUILDER(
     Name("Case").Device(DEVICE_GPU).HostMemory("branch_index"), CaseOp);
+REGISTER_KERNEL_BUILDER(
+    Name("Case").Device(DEVICE_DEFAULT).HostMemory("branch_index"), CaseOp);
 REGISTER_KERNEL_BUILDER(Name("StatelessCase").Device(DEVICE_CPU), CaseOp);
 REGISTER_KERNEL_BUILDER(
     Name("StatelessCase").Device(DEVICE_GPU).HostMemory("branch_index"),
+    CaseOp);
+REGISTER_KERNEL_BUILDER(
+    Name("StatelessCase").Device(DEVICE_DEFAULT).HostMemory("branch_index"),
     CaseOp);
 
 REGISTER_KERNEL_BUILDER(Name("StatelessIf").Device(DEVICE_CPU), IfOp);
 REGISTER_KERNEL_BUILDER(
     Name("StatelessIf").Device(DEVICE_GPU).HostMemory("cond"), IfOp);
+REGISTER_KERNEL_BUILDER(
+    Name("StatelessIf").Device(DEVICE_DEFAULT).HostMemory("cond"), IfOp);
 
 class WhileOp : public AsyncOpKernel {
  public:
@@ -693,12 +704,15 @@ class WhileOp : public AsyncOpKernel {
 // TODO(drpng): remove these.
 REGISTER_KERNEL_BUILDER(Name("_While").Device(DEVICE_CPU), WhileOp);
 REGISTER_KERNEL_BUILDER(Name("_While").Device(DEVICE_GPU), WhileOp);
+REGISTER_KERNEL_BUILDER(Name("_While").Device(DEVICE_DEFAULT), WhileOp);
 
 REGISTER_KERNEL_BUILDER(Name("While").Device(DEVICE_CPU), WhileOp);
 REGISTER_KERNEL_BUILDER(Name("While").Device(DEVICE_GPU), WhileOp);
+REGISTER_KERNEL_BUILDER(Name("While").Device(DEVICE_DEFAULT), WhileOp);
 
 REGISTER_KERNEL_BUILDER(Name("StatelessWhile").Device(DEVICE_CPU), WhileOp);
 REGISTER_KERNEL_BUILDER(Name("StatelessWhile").Device(DEVICE_GPU), WhileOp);
+REGISTER_KERNEL_BUILDER(Name("StatelessWhile").Device(DEVICE_DEFAULT), WhileOp);
 
 class ToBoolOp : public OpKernel {
  public:
@@ -854,6 +868,12 @@ REGISTER_KERNEL_BUILDER(Name("For")
                             .HostMemory("limit")
                             .HostMemory("delta"),
                         ForOp);
+REGISTER_KERNEL_BUILDER(Name("For")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("start")
+                            .HostMemory("limit")
+                            .HostMemory("delta"),
+                        ForOp);
 
 // FakeParamOp allocates a tensor with a shape conforming to the expected
 // output. This is necessary if the value will be stored in a while_loop's
@@ -892,6 +912,7 @@ class FakeParamOp : public OpKernel {
 
 REGISTER_KERNEL_BUILDER(Name("FakeParam").Device(DEVICE_CPU), FakeParamOp);
 REGISTER_KERNEL_BUILDER(Name("FakeParam").Device(DEVICE_GPU), FakeParamOp);
+REGISTER_KERNEL_BUILDER(Name("FakeParam").Device(DEVICE_DEFAULT), FakeParamOp);
 
 // DeviceIndexOP returns the current device index.
 class DeviceIndexOp : public OpKernel {
@@ -923,6 +944,9 @@ class DeviceIndexOp : public OpKernel {
 REGISTER_KERNEL_BUILDER(Name("DeviceIndex").Device(DEVICE_CPU), DeviceIndexOp);
 REGISTER_KERNEL_BUILDER(
     Name("DeviceIndex").Device(DEVICE_GPU).HostMemory("index"), DeviceIndexOp);
+REGISTER_KERNEL_BUILDER(
+    Name("DeviceIndex").Device(DEVICE_DEFAULT).HostMemory("index"),
+    DeviceIndexOp);
 
 }  // namespace
 }  // namespace tensorflow
