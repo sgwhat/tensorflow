@@ -49,6 +49,8 @@ static std::unordered_set<string>* get_dataset_op_registry() {
   return names;
 }
 
+const char kDatasetVariantTypeName[] = "tensorflow::data::DatasetVariant";
+
 // A wrapper class for storing a `DatasetBase` instance in a DT_VARIANT tensor.
 // Objects of the wrapper class own a reference on an instance of `DatasetBase`,
 // and the wrapper's copy constructor and destructor take care of managing the
@@ -163,6 +165,11 @@ REGISTER_KERNEL_BUILDER(Name("WrapDatasetVariant")
                             .HostMemory("output_handle")
                             .Device(DEVICE_GPU),
                         WrapDatasetVariantOp);
+REGISTER_KERNEL_BUILDER(Name("WrapDatasetVariant")
+                            .HostMemory("input_handle")
+                            .HostMemory("output_handle")
+                            .Device(DEVICE_DEFAULT),
+                        WrapDatasetVariantOp);
 
 class UnwrapDatasetVariantOp : public OpKernel {
  public:
@@ -193,6 +200,11 @@ REGISTER_KERNEL_BUILDER(Name("UnwrapDatasetVariant")
                             .HostMemory("output_handle")
                             .Device(DEVICE_GPU),
                         UnwrapDatasetVariantOp);
+REGISTER_KERNEL_BUILDER(Name("UnwrapDatasetVariant")
+                            .HostMemory("input_handle")
+                            .HostMemory("output_handle")
+                            .Device(DEVICE_DEFAULT),
+                        UnwrapDatasetVariantOp);
 
 static Status WrappedDatasetVariantDeviceCopy(
     const WrappedDatasetVariantWrapper& from, WrappedDatasetVariantWrapper* to,
@@ -212,6 +224,24 @@ REGISTER_OPTIONAL_COPY(VariantDeviceCopyDirection::DEVICE_TO_DEVICE);
 
 REGISTER_UNARY_VARIANT_DECODE_FUNCTION(WrappedDatasetVariantWrapper,
                                        kWrappedDatasetVariantTypeName);
+
+static Status DatasetVariantDeviceCopy(
+    const DatasetVariantWrapper& from, DatasetVariantWrapper* to,
+    const UnaryVariantOpRegistry::AsyncTensorDeviceCopyFn& copy) {
+  *to = DatasetVariantWrapper(from);
+  return Status::OK();
+}
+
+#define REGISTER_DATASETVARIANT_COPY(DIRECTION)         \
+  INTERNAL_REGISTER_UNARY_VARIANT_DEVICE_COPY_FUNCTION( \
+      DatasetVariantWrapper, DIRECTION, DatasetVariantDeviceCopy)
+
+REGISTER_DATASETVARIANT_COPY(VariantDeviceCopyDirection::HOST_TO_DEVICE);
+REGISTER_DATASETVARIANT_COPY(VariantDeviceCopyDirection::DEVICE_TO_HOST);
+REGISTER_DATASETVARIANT_COPY(VariantDeviceCopyDirection::DEVICE_TO_DEVICE);
+
+REGISTER_UNARY_VARIANT_DECODE_FUNCTION(DatasetVariantWrapper,
+                                       kDatasetVariantTypeName);
 
 }  // namespace
 
