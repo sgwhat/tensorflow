@@ -117,14 +117,12 @@ class KernelLabelOp : public OpKernel {
 
 REGISTER_KERNEL_BUILDER(Name("KernelLabel").Device(DEVICE_CPU),
                         KernelLabelOp<DEFAULT_LABEL>);
-REGISTER_KERNEL_BUILDER(Name("KernelLabel")
-                            .Device(DEVICE_CPU)
-                            .Label("overload_1"),
-                        KernelLabelOp<OVERLOAD_1_LABEL>);
-REGISTER_KERNEL_BUILDER(Name("KernelLabel")
-                            .Device(DEVICE_CPU)
-                            .Label("overload_2"),
-                        KernelLabelOp<OVERLOAD_2_LABEL>);
+REGISTER_KERNEL_BUILDER(
+    Name("KernelLabel").Device(DEVICE_CPU).Label("overload_1"),
+    KernelLabelOp<OVERLOAD_1_LABEL>);
+REGISTER_KERNEL_BUILDER(
+    Name("KernelLabel").Device(DEVICE_CPU).Label("overload_2"),
+    KernelLabelOp<OVERLOAD_2_LABEL>);
 
 // All "KernelLabelRequired" kernels have labels
 REGISTER_KERNEL_BUILDER(
@@ -690,6 +688,8 @@ class DevicePlacementOp : public OpKernel {
 REGISTER_KERNEL_BUILDER(Name("DevicePlacementOp").Device(DEVICE_CPU),
                         DevicePlacementOp);
 REGISTER_KERNEL_BUILDER(Name("DevicePlacementOp").Device(DEVICE_GPU),
+                        DevicePlacementOp);
+REGISTER_KERNEL_BUILDER(Name("DevicePlacementOp").Device(DEVICE_DEFAULT),
                         DevicePlacementOp);
 
 // An op which returns the dtype of the tensor it was passed in. It expects
