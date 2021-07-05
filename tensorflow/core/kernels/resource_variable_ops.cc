@@ -365,6 +365,9 @@ REGISTER_KERNEL_BUILDER(Name("DestroyResourceOp").Device(DEVICE_CPU),
 REGISTER_KERNEL_BUILDER(
     Name("DestroyResourceOp").Device(DEVICE_GPU).HostMemory("resource"),
     DestroyResourceOp);
+REGISTER_KERNEL_BUILDER(
+    Name("DestroyResourceOp").Device(DEVICE_DEFAULT).HostMemory("resource"),
+    DestroyResourceOp);
 
 template <typename Device, typename T>
 class AssignVariableOp : public OpKernel {

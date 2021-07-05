@@ -18,7 +18,6 @@ limitations under the License.
 #include <deque>
 #include <utility>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/resource_mgr.h"
 #include "tensorflow/core/framework/shared_ptr_variant.h"
 #include "tensorflow/core/framework/variant.h"
@@ -29,6 +28,7 @@ limitations under the License.
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/types.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 namespace tensorflow {
 
@@ -215,6 +215,11 @@ REGISTER_KERNEL_BUILDER(Name("MutexLock")
                             .HostMemory("mutex_lock")
                             .HostMemory("mutex"),
                         MutexLockOp);
+REGISTER_KERNEL_BUILDER(Name("MutexLock")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("mutex_lock")
+                            .HostMemory("mutex"),
+                        MutexLockOp);
 
 REGISTER_KERNEL_BUILDER(
     Name("MutexV2").Device(DEVICE_CPU).HostMemory("resource"),
@@ -223,11 +228,18 @@ REGISTER_KERNEL_BUILDER(
 REGISTER_KERNEL_BUILDER(Name("MutexV2").Device(DEVICE_GPU),
                         ResourceHandleOp<Mutex>);
 
+REGISTER_KERNEL_BUILDER(Name("MutexV2").Device(DEVICE_DEFAULT),
+                        ResourceHandleOp<Mutex>);
+
 REGISTER_KERNEL_BUILDER(Name("ConsumeMutexLock").Device(DEVICE_CPU),
                         ConsumeMutexLockOp);
 
 REGISTER_KERNEL_BUILDER(
     Name("ConsumeMutexLock").Device(DEVICE_GPU).HostMemory("mutex_lock"),
+    ConsumeMutexLockOp);
+
+REGISTER_KERNEL_BUILDER(
+    Name("ConsumeMutexLock").Device(DEVICE_DEFAULT).HostMemory("mutex_lock"),
     ConsumeMutexLockOp);
 
 }  // namespace tensorflow
