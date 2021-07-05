@@ -642,6 +642,14 @@ REGISTER_KERNEL_BUILDER(Name("PrefetchDataset")
                             .HostMemory("handle")
                             .Priority(1),
                         PrefetchDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("PrefetchDataset")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("buffer_size")
+                            .HostMemory("input_dataset")
+                            .HostMemory("handle")
+                            .Priority(1),
+                        PrefetchDatasetOp);
+
 }  // namespace
 
 }  // namespace data

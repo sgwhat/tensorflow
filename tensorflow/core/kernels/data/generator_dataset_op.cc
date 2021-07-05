@@ -232,6 +232,11 @@ REGISTER_KERNEL_BUILDER(Name("GeneratorDataset")
                             .HostMemory("handle")
                             .Priority(1),
                         GeneratorDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("GeneratorDataset")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("handle")
+                            .Priority(1),
+                        GeneratorDatasetOp);
 }  // namespace
 
 }  // namespace data

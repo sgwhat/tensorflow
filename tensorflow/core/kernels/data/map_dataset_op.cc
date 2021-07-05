@@ -243,6 +243,12 @@ REGISTER_KERNEL_BUILDER(Name("ExperimentalMapDataset")
                             .HostMemory("input_dataset")
                             .HostMemory("handle"),
                         MapDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("ExperimentalMapDataset")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("input_dataset")
+                            .HostMemory("handle"),
+                        MapDatasetOp);
+
 REGISTER_INPUT_COLOCATION_EXEMPTION("MapDataset");
 
 }  // namespace

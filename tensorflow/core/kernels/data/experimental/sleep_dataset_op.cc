@@ -187,6 +187,18 @@ REGISTER_KERNEL_BUILDER(Name("ExperimentalSleepDataset")
                             .HostMemory("input_dataset")
                             .HostMemory("handle"),
                         SleepDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("SleepDataset")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("sleep_microseconds")
+                            .HostMemory("input_dataset")
+                            .HostMemory("handle"),
+                        SleepDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("ExperimentalSleepDataset")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("sleep_microseconds")
+                            .HostMemory("input_dataset")
+                            .HostMemory("handle"),
+                        SleepDatasetOp);
 
 }  // namespace
 }  // namespace experimental
