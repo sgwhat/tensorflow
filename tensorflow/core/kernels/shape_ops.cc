@@ -533,4 +533,31 @@ REGISTER_GPU_HOST_KERNEL(ResourceHandle);
 #undef REGISTER_GPU_HOST_KERNEL
 
 #endif
+
+#define REGISTER_DEFAULT_KERNEL(type)                                       \
+  REGISTER_KERNEL_BUILDER(                                                  \
+      Name("EnsureShape").Device(DEVICE_DEFAULT).TypeConstraint<type>("T"), \
+      EnsureShapeOp)
+
+TF_CALL_NUMBER_TYPES_NO_INT32(REGISTER_DEFAULT_KERNEL);
+REGISTER_DEFAULT_KERNEL(Variant);
+
+#undef REGISTER_DEFAULT_KERNEL
+
+// A special DEFAULT kernel for int32 and bool.
+#define REGISTER_DEFAULT_HOST_KERNEL(type)                \
+  REGISTER_KERNEL_BUILDER(Name("EnsureShape")             \
+                              .Device(DEVICE_DEFAULT)     \
+                              .HostMemory("input")        \
+                              .HostMemory("output")       \
+                              .TypeConstraint<type>("T"), \
+                          EnsureShapeOp)
+
+REGISTER_DEFAULT_HOST_KERNEL(int32);
+REGISTER_DEFAULT_HOST_KERNEL(bool);
+REGISTER_DEFAULT_HOST_KERNEL(tstring);
+REGISTER_DEFAULT_HOST_KERNEL(ResourceHandle);
+
+#undef REGISTER_DEFAULT_HOST_KERNEL
+
 }  // namespace tensorflow
