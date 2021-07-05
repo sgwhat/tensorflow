@@ -220,6 +220,7 @@ REGISTER_KERNEL_BUILDER(Name("Stage").Device(DEVICE_CPU), StageOp);
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
 REGISTER_KERNEL_BUILDER(Name("Stage").Device(DEVICE_GPU), StageOp);
 #endif
+REGISTER_KERNEL_BUILDER(Name("Stage").Device(DEVICE_DEFAULT), StageOp);
 
 class UnstageOp : public OpKernel {
  public:
@@ -251,6 +252,7 @@ REGISTER_KERNEL_BUILDER(Name("Unstage").Device(DEVICE_CPU), UnstageOp);
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
 REGISTER_KERNEL_BUILDER(Name("Unstage").Device(DEVICE_GPU), UnstageOp);
 #endif
+REGISTER_KERNEL_BUILDER(Name("Unstage").Device(DEVICE_DEFAULT), UnstageOp);
 
 class StagePeekOp : public OpKernel {
  public:
@@ -285,6 +287,8 @@ REGISTER_KERNEL_BUILDER(Name("StagePeek").Device(DEVICE_CPU), StagePeekOp);
 REGISTER_KERNEL_BUILDER(
     Name("StagePeek").HostMemory("index").Device(DEVICE_GPU), StagePeekOp);
 #endif
+REGISTER_KERNEL_BUILDER(
+    Name("StagePeek").HostMemory("index").Device(DEVICE_DEFAULT), StagePeekOp);
 
 class StageSizeOp : public OpKernel {
  public:
@@ -312,6 +316,8 @@ REGISTER_KERNEL_BUILDER(Name("StageSize").Device(DEVICE_CPU), StageSizeOp);
 REGISTER_KERNEL_BUILDER(Name("StageSize").HostMemory("size").Device(DEVICE_GPU),
                         StageSizeOp);
 #endif
+REGISTER_KERNEL_BUILDER(
+    Name("StageSize").HostMemory("size").Device(DEVICE_DEFAULT), StageSizeOp);
 
 class StageClearOp : public OpKernel {
  public:
@@ -333,5 +339,7 @@ REGISTER_KERNEL_BUILDER(Name("StageClear").Device(DEVICE_CPU), StageClearOp);
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
 REGISTER_KERNEL_BUILDER(Name("StageClear").Device(DEVICE_GPU), StageClearOp);
 #endif
+REGISTER_KERNEL_BUILDER(Name("StageClear").Device(DEVICE_DEFAULT),
+                        StageClearOp);
 
 }  // namespace tensorflow

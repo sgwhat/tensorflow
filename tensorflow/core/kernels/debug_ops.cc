@@ -38,6 +38,13 @@ REGISTER_KERNEL_BUILDER(Name("CopyHost")
                         CopyOp);
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+REGISTER_KERNEL_BUILDER(Name("Copy").Device(DEVICE_DEFAULT), CopyOp);
+
+REGISTER_KERNEL_BUILDER(Name("CopyHost")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("input")
+                            .HostMemory("output"),
+                        CopyOp);
 
 // Register debug identity (non-ref and ref) ops.
 REGISTER_KERNEL_BUILDER(Name("DebugIdentity").Device(DEVICE_CPU),
@@ -51,6 +58,11 @@ REGISTER_KERNEL_BUILDER(Name("DebugIdentity")
                         DebugIdentityOp);
 #endif
 
+REGISTER_KERNEL_BUILDER(Name("DebugIdentity")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("input")
+                            .HostMemory("output"),
+                        DebugIdentityOp);
 
 // Register debug NaN-counter (non-ref and ref) ops.
 #define REGISTER_DEBUG_NAN_COUNT(type)                                    \
@@ -71,7 +83,16 @@ REGISTER_GPU_DEBUG_NAN_COUNT(Eigen::half);
 REGISTER_GPU_DEBUG_NAN_COUNT(float);
 REGISTER_GPU_DEBUG_NAN_COUNT(double);
 #endif
-
+#define REGISTER_DEFAULT_DEBUG_NAN_COUNT(type)            \
+  REGISTER_KERNEL_BUILDER(Name("DebugNanCount")           \
+                              .Device(DEVICE_DEFAULT)     \
+                              .HostMemory("input")        \
+                              .HostMemory("output")       \
+                              .TypeConstraint<type>("T"), \
+                          DebugNanCountOp<type>);
+REGISTER_DEFAULT_DEBUG_NAN_COUNT(Eigen::half);
+REGISTER_DEFAULT_DEBUG_NAN_COUNT(float);
+REGISTER_DEFAULT_DEBUG_NAN_COUNT(double);
 
 // Register debug numeric summary ops.
 #define REGISTER_DEBUG_NUMERIC_SUMMARY_COUNT(type)        \
@@ -98,6 +119,19 @@ TF_CALL_float(REGISTER_GPU_DEBUG_NUMERIC_SUMMARY_COUNT);
 TF_CALL_double(REGISTER_GPU_DEBUG_NUMERIC_SUMMARY_COUNT);
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+#define REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT(type) \
+  REGISTER_KERNEL_BUILDER(Name("DebugNumericSummary")      \
+                              .Device(DEVICE_DEFAULT)      \
+                              .HostMemory("input")         \
+                              .HostMemory("output")        \
+                              .TypeConstraint<type>("T"),  \
+                          DebugNumericSummaryOp<type>);
+TF_CALL_bool(REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT);
+TF_CALL_INTEGRAL_TYPES(REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT);
+TF_CALL_float(REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT);
+TF_CALL_double(REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT);
+
+#undef REGISTER_DEFAULT_DEBUG_NUMERIC_SUMMARY_COUNT
 
 REGISTER_KERNEL_BUILDER(Name("DebugIdentityV2").Device(DEVICE_CPU),
                         DebugIdentityV2Op);
@@ -109,6 +143,12 @@ REGISTER_KERNEL_BUILDER(Name("DebugIdentityV2")
                             .HostMemory("output"),
                         DebugIdentityV2Op);
 #endif
+
+REGISTER_KERNEL_BUILDER(Name("DebugIdentityV2")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("input")
+                            .HostMemory("output"),
+                        DebugIdentityV2Op);
 
 #define REGISTER_DEBUG_NUMERIC_SUMMARY_V2_FLOAT(type)                 \
   REGISTER_KERNEL_BUILDER(Name("DebugNumericSummaryV2")               \
