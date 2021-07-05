@@ -144,7 +144,20 @@ REGISTER_KERNEL_BUILDER(Name("BroadcastArgs")
                             .HostMemory("s1")
                             .HostMemory("r0"),
                         BCastArgsOp<int64>);
-
+REGISTER_KERNEL_BUILDER(Name("BroadcastArgs")
+                            .Device(DEVICE_DEFAULT)
+                            .TypeConstraint<int32>("T")
+                            .HostMemory("s0")
+                            .HostMemory("s1")
+                            .HostMemory("r0"),
+                        BCastArgsOp<int32>);
+REGISTER_KERNEL_BUILDER(Name("BroadcastArgs")
+                            .Device(DEVICE_DEFAULT)
+                            .TypeConstraint<int64>("T")
+                            .HostMemory("s0")
+                            .HostMemory("s1")
+                            .HostMemory("r0"),
+                        BCastArgsOp<int64>);
 
 REGISTER_KERNEL_BUILDER(Name("BroadcastGradientArgs")
                             .Device(DEVICE_CPU)
@@ -172,6 +185,22 @@ REGISTER_KERNEL_BUILDER(Name("BroadcastGradientArgs")
                         BCastGradArgsOp<int32>);
 REGISTER_KERNEL_BUILDER(Name("BroadcastGradientArgs")
                             .Device(DEVICE_GPU)
+                            .TypeConstraint<int64>("T")
+                            .HostMemory("s0")
+                            .HostMemory("s1")
+                            .HostMemory("r0")
+                            .HostMemory("r1"),
+                        BCastGradArgsOp<int64>);
+REGISTER_KERNEL_BUILDER(Name("BroadcastGradientArgs")
+                            .Device(DEVICE_DEFAULT)
+                            .TypeConstraint<int32>("T")
+                            .HostMemory("s0")
+                            .HostMemory("s1")
+                            .HostMemory("r0")
+                            .HostMemory("r1"),
+                        BCastGradArgsOp<int32>);
+REGISTER_KERNEL_BUILDER(Name("BroadcastGradientArgs")
+                            .Device(DEVICE_DEFAULT)
                             .TypeConstraint<int64>("T")
                             .HostMemory("s0")
                             .HostMemory("s1")
