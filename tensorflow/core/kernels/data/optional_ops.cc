@@ -164,11 +164,16 @@ REGISTER_KERNEL_BUILDER(Name("OptionalNone").Device(DEVICE_CPU).Priority(2),
                         OptionalNoneOp);
 REGISTER_KERNEL_BUILDER(Name("OptionalNone").Device(DEVICE_GPU).Priority(1),
                         OptionalNoneOp);
+REGISTER_KERNEL_BUILDER(Name("OptionalNone").Device(DEVICE_DEFAULT).Priority(1),
+                        OptionalNoneOp);
 REGISTER_KERNEL_BUILDER(
     Name("OptionalFromValue").Device(DEVICE_CPU).Priority(2),
     OptionalFromValueOp);
 REGISTER_KERNEL_BUILDER(
     Name("OptionalFromValue").Device(DEVICE_GPU).Priority(1),
+    OptionalFromValueOp);
+REGISTER_KERNEL_BUILDER(
+    Name("OptionalFromValue").Device(DEVICE_DEFAULT).Priority(1),
     OptionalFromValueOp);
 
 REGISTER_KERNEL_BUILDER(Name("OptionalHasValue").Device(DEVICE_CPU).Priority(2),
@@ -178,10 +183,19 @@ REGISTER_KERNEL_BUILDER(Name("OptionalHasValue")
                             .HostMemory("has_value")
                             .Priority(1),
                         OptionalHasValueOp);
+REGISTER_KERNEL_BUILDER(Name("OptionalHasValue")
+                            .Device(DEVICE_DEFAULT)
+                            .HostMemory("has_value")
+                            .Priority(1),
+                        OptionalHasValueOp);
+
 REGISTER_KERNEL_BUILDER(Name("OptionalGetValue").Device(DEVICE_CPU).Priority(2),
                         OptionalGetValueOp);
 REGISTER_KERNEL_BUILDER(Name("OptionalGetValue").Device(DEVICE_GPU).Priority(1),
                         OptionalGetValueOp);
+REGISTER_KERNEL_BUILDER(
+    Name("OptionalGetValue").Device(DEVICE_DEFAULT).Priority(1),
+    OptionalGetValueOp);
 
 }  // namespace
 
