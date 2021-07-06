@@ -91,6 +91,18 @@ REGISTER_KERNEL_BUILDER(Name("InvertPermutation")
                             .HostMemory("y"),
                         InvertPermutationOp<int64>);
 
+REGISTER_KERNEL_BUILDER(Name("InvertPermutation")
+                            .Device(DEVICE_DEFAULT)
+                            .TypeConstraint<int32>("T")
+                            .HostMemory("x")
+                            .HostMemory("y"),
+                        InvertPermutationOp<int32>);
+REGISTER_KERNEL_BUILDER(Name("InvertPermutation")
+                            .Device(DEVICE_DEFAULT)
+                            .TypeConstraint<int64>("T")
+                            .HostMemory("x")
+                            .HostMemory("y"),
+                        InvertPermutationOp<int64>);
 
 namespace {
 template <typename Tperm>

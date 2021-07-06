@@ -91,6 +91,22 @@ TF_CALL_NUMBER_TYPES(REGISTER_GPU_KERNEL);
 REGISTER_GPU_KERNEL(bool);
 #undef REGISTER_GPU_KERNEL
 
+#define REGISTER_DEFAULT_KERNEL(type)                     \
+  REGISTER_KERNEL_BUILDER(Name("GetSessionHandle")        \
+                              .Device(DEVICE_DEFAULT)     \
+                              .HostMemory("handle")       \
+                              .TypeConstraint<type>("T"), \
+                          GetSessionHandleOp)             \
+  REGISTER_KERNEL_BUILDER(Name("GetSessionHandleV2")      \
+                              .Device(DEVICE_DEFAULT)     \
+                              .HostMemory("handle")       \
+                              .TypeConstraint<type>("T"), \
+                          GetSessionHandleOp)
+
+TF_CALL_NUMBER_TYPES(REGISTER_DEFAULT_KERNEL);
+REGISTER_DEFAULT_KERNEL(bool);
+#undef REGISTER_DEFAULT_KERNEL
+
 class GetSessionTensorOp : public OpKernel {
  public:
   explicit GetSessionTensorOp(OpKernelConstruction* context)
@@ -125,6 +141,17 @@ TF_CALL_NUMBER_TYPES(REGISTER_GPU_KERNEL);
 REGISTER_GPU_KERNEL(bool);
 #undef REGISTER_GPU_KERNEL
 
+#define REGISTER_DEFAULT_KERNEL(type)                         \
+  REGISTER_KERNEL_BUILDER(Name("GetSessionTensor")            \
+                              .Device(DEVICE_DEFAULT)         \
+                              .HostMemory("handle")           \
+                              .TypeConstraint<type>("dtype"), \
+                          GetSessionTensorOp)
+
+TF_CALL_NUMBER_TYPES(REGISTER_DEFAULT_KERNEL);
+REGISTER_DEFAULT_KERNEL(bool);
+#undef REGISTER_DEFAULT_KERNEL
+
 class DeleteSessionTensorOp : public OpKernel {
  public:
   explicit DeleteSessionTensorOp(OpKernelConstruction* context)
@@ -147,6 +174,9 @@ REGISTER_KERNEL_BUILDER(Name("DeleteSessionTensor").Device(DEVICE_CPU),
                         DeleteSessionTensorOp);
 REGISTER_KERNEL_BUILDER(
     Name("DeleteSessionTensor").Device(DEVICE_GPU).HostMemory("handle"),
+    DeleteSessionTensorOp);
+REGISTER_KERNEL_BUILDER(
+    Name("DeleteSessionTensor").Device(DEVICE_DEFAULT).HostMemory("handle"),
     DeleteSessionTensorOp);
 
 }  // namespace tensorflow
