@@ -96,4 +96,5 @@ bazel test \
     -- \
     //tensorflow/... \
     -//tensorflow/compiler/... \
-    -//tensorflow/lite/...
+    -//tensorflow/lite/... \
+    -//tensorflow/core/tpu/...
