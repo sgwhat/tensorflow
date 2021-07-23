@@ -15,11 +15,8 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #define EIGEN_USE_THREADS
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
-#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/device_base.h"
-#endif
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -30,6 +27,7 @@ limitations under the License.
 #include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/profiler/lib/traceme.h"
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
 namespace tensorflow {
 typedef Eigen::GpuDevice GPUDevice;
@@ -400,23 +398,28 @@ class WhileOp : public AsyncOpKernel {
   static Status CondResultToBool(OpKernelContext* ctx,
                                  const FunctionLibraryRuntime::Options& opts,
                                  const Tensor& cond_t, bool* out_result) {
-#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+    Device* device = down_cast<Device*>(ctx->device());
+    DeviceContext* device_ctx = ctx->op_device_context();
     const DeviceBase::GpuDeviceInfo* gpu_device_info =
         ctx->device()->tensorflow_gpu_device_info();
+
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+    bool is_pluggable_or_gpu = gpu_device_info ? true : false;
+#else
+    bool is_pluggable_or_gpu =
+        device_ctx ? device_ctx->IsPluggableDevice() : false;
+#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
     const bool is_hostmem_dtype =
         cond_t.dtype() == DT_INT32 || cond_t.dtype() == DT_INT64;
-    if (!is_hostmem_dtype && gpu_device_info &&
+    if (is_pluggable_or_gpu && !is_hostmem_dtype && gpu_device_info &&
         (opts.rets_alloc_attrs.empty() ||
          !opts.rets_alloc_attrs[0].on_host())) {
       // Copy the ret value to host if it's allocated on device.
-      Device* device = down_cast<Device*>(ctx->device());
-      DeviceContext* device_ctx = ctx->op_device_context();
       Tensor host_cond_t = Tensor(cond_t.dtype(), cond_t.shape());
       TF_RETURN_IF_ERROR(device_ctx->CopyDeviceTensorToCPUSync(
           &cond_t, /*tensor_name=*/"", device, &host_cond_t));
       return ToBool({host_cond_t}, out_result);
     }
-#endif
     return ToBool({cond_t}, out_result);
   }
 
