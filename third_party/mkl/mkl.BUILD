@@ -44,3 +44,30 @@ cc_library(
     linkopts = ["/FORCE:MULTIPLE"],
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "mkl_libs_linux_file",
+    srcs = [
+        "lib/libiomp5.so",
+        "lib/libmklml_intel.so",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mkl_libs_darwin_file",
+    srcs = [
+        "lib/libiomp5.dylib",
+        "lib/libmklml.dylib",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mkl_libs_windows_file",
+    srcs = [
+        "lib/libiomp5md.lib",
+        "lib/mklml.lib",
+    ],
+    visibility = ["//visibility:public"],
+)
