@@ -4,6 +4,8 @@ LABEL maintainer="Jan Prach <jendap@google.com>"
 
 # Copy and run the install scripts.
 COPY install/*.sh /install/
+ENV http_proxy http://child-prc.intel.com:913
+ENV https_proxy https://child-prc.intel.com:913
 RUN /install/install_bootstrap_deb_packages.sh
 RUN add-apt-repository -y ppa:openjdk-r/ppa && \
     add-apt-repository -y ppa:george-edison55/cmake-3.x

@@ -62,8 +62,8 @@ constexpr char kMapAndBatchOp[] = "MapAndBatchDataset";
 constexpr char kExperimentalMapAndBatchOp[] = "ExperimentalMapAndBatchDataset";
 
 constexpr std::array<const char*, 6> kBatchDatasetOps = {
-    kBatchOp,       kBatchV2Op,      kMapAndBatchOp, kExperimentalMapAndBatchOp,
-    kPaddedBatchOp, kPaddedBatchV2Op};
+   "kBatchOp",       "kBatchV2Op",      "kMapAndBatchOp", "kExperimentalMapAndBatchOp",
+   "kPaddedBatchOp", "kPaddedBatchV2Op"};
 
 constexpr std::array<const char*, 2> kMultipleInputsDatasetOps = {
     "ConcatenateDataset",

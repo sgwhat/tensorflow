@@ -45,11 +45,13 @@ if [ "${TF_NEED_ROCM}" == "1" ]; then
 fi
 
 docker build \
+  --network=host \
   -t "${DOCKER_IMAGE}" \
   -f "${DOCKER_CONTEXT_PATH}/${DOCKER_FILE}" \
   "${DOCKER_CONTEXT_PATH}"
 
 ${DOCKER_BINARY} run \
+  --network=host \
   --rm \
   --pid=host \
   -v ${ROOT_DIR}:/workspace \

@@ -41,7 +41,17 @@ pkg_tar(
         ":THIRD_PARTY_TF_JNI_LICENSES",
         "//:LICENSE",
         "//tensorflow/java:libtensorflow_jni",
-    ],
+        ] + select({
+            "@org_tensorflow//tensorflow:linux_x86_64": [
+                "@mkl_linux//:mkl_libs_linux_file",
+             ],
+            "@org_tensorflow//tensorflow:macos": [
+                "@mkl_darwin//:mkl_libs_darwin_file",
+            ],
+            "@org_tensorflow//tensorflow:windows": [
+                "@mkl_windows//:mkl_libs_windows_file",
+            ],
+        }),
     extension = "tar.gz",
     # Mark as "manual" till
     # https://github.com/bazelbuild/bazel/issues/2352
