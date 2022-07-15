@@ -497,7 +497,7 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
     tf_http_archive(
         name = "curl",
         build_file = clean_dep("//third_party:curl.BUILD"),
-        sha256 = "b0a3428acb60fa59044c4d0baae4e4fc09ae9af1d8a3aa84b2e3fbcd99841f77",
+        sha256 = "3c6893d38d054d4e378267166858698899e9d87258e8ff1419d020c395384535",
         strip_prefix = "curl-7.84.0",
         system_build_file = clean_dep("//third_party/systemlibs:curl.BUILD"),
         urls = [
