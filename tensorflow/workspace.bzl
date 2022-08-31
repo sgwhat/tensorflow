@@ -271,12 +271,12 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
     tf_http_archive(
         name = "org_sqlite",
         build_file = clean_dep("//third_party:sqlite.BUILD"),
-        sha256 = "b49409ef123e193e719e2536f9b795482a69e61a9cc728933739b9024f035061",
-        strip_prefix = "sqlite-amalgamation-3350500",
+        sha256 = "87775784f8b22d0d0f1d7811870d39feaa7896319c7c20b849a4181c5a50609b",
+        strip_prefix = "sqlite-amalgamation-3390200",
         system_build_file = clean_dep("//third_party/systemlibs:sqlite.BUILD"),
         urls = [
-            "https://storage.googleapis.com/mirror.tensorflow.org/www.sqlite.org/2021/sqlite-amalgamation-3350500.zip",
-            "https://www.sqlite.org/2021/sqlite-amalgamation-3350500.zip",
+            "https://storage.googleapis.com/mirror.tensorflow.org/www.sqlite.org/2021/sqlite-amalgamation-3390200.zip",
+            "https://www.sqlite.org/2021/sqlite-amalgamation-3390200.zip",
         ],
     )
 
