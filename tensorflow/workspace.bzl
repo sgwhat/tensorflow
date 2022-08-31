@@ -275,8 +275,7 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
         strip_prefix = "sqlite-amalgamation-3390200",
         system_build_file = clean_dep("//third_party/systemlibs:sqlite.BUILD"),
         urls = [
-            "https://storage.googleapis.com/mirror.tensorflow.org/www.sqlite.org/2021/sqlite-amalgamation-3390200.zip",
-            "https://www.sqlite.org/2021/sqlite-amalgamation-3390200.zip",
+            "https://www.sqlite.org/2022/sqlite-amalgamation-3390200.zip"
         ],
     )
 
