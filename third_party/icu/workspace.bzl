@@ -10,7 +10,7 @@ def clean_dep(dep):
 def repo():
     third_party_http_archive(
         name = "icu",
-        strip_prefix = "icu-release-71-1",
+        strip_prefix = "icu-release-69-1",
         sha256 = "39ce83dd5d15c7539dde261733e106a391923f82caf1ce52ecaebb72d93b4579",
         urls = [
             "https://storage.googleapis.com/mirror.tensorflow.org/github.com/unicode-org/icu/archive/release-69-1.tar.gz",
