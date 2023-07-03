@@ -1,22 +1,16 @@
 """Loads a lightweight subset of the ICU library for Unicode processing."""
 
-load("//third_party:repo.bzl", "third_party_http_archive")
+load("//third_party:repo.bzl", "tf_http_archive", "tf_mirror_urls")
 
-# Sanitize a dependency so that it works correctly from code that includes
-# TensorFlow as a submodule.
-def clean_dep(dep):
-    return str(Label(dep))
-
+# NOTE: If you upgrade this, generate the data files by following the
+# instructions in third_party/icu/data/BUILD
 def repo():
-    third_party_http_archive(
+    tf_http_archive(
         name = "icu",
         strip_prefix = "icu-release-69-1",
-        sha256 = "39ce83dd5d15c7539dde261733e106a391923f82caf1ce52ecaebb72d93b4579",
-        urls = [
-            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/unicode-org/icu/archive/release-69-1.tar.gz",
-            "https://github.com/unicode-org/icu/archive/release-69-1.tar.gz",
-        ],
-        build_file = "//third_party/icu:BUILD.bazel",
+        sha256 = "3144e17a612dda145aa0e4acb3caa27a5dae4e26edced64bc351c43d5004af53",
+        urls = tf_mirror_urls("https://github.com/unicode-org/icu/archive/release-69-1.zip"),
+        build_file = "//third_party/icu:icu.BUILD",
         system_build_file = "//third_party/icu:BUILD.system",
-        patch_file = clean_dep("//third_party/icu:udata.patch"),
+        patch_file = ["//third_party/icu:udata.patch"],
     )
