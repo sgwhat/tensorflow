@@ -1,6 +1,6 @@
 """loads the jpeg library, used by TF."""
 
-load("//third_party:repo.bzl", "tf_http_archive_new", "tf_mirror_urls", third_party_http_archive)
+load("//third_party:repo.bzl", "tf_http_archive_new", "tf_mirror_urls", "third_party_http_archive")
 
 def repo():
     third_party_http_archive(
