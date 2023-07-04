@@ -63,6 +63,6 @@
          }
 -        */
 +
- #if U_PLATFORM_HAS_WINUWP_API == 0 // Windows UWP Platform does not support dll icu data at this time
+ #if !defined(ICU_DATA_DIR_WINDOWS)
          setCommonICUDataPointer(&U_ICUDATA_ENTRY_POINT, FALSE, pErrorCode);
          {
