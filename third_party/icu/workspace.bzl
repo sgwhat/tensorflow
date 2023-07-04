@@ -1,6 +1,6 @@
 """Loads a lightweight subset of the ICU library for Unicode processing."""
 
-load("//third_party:repo.bzl", "third_party_http_archive", "tf_mirror_urls")
+load("//third_party:repo.bzl", "third_party_http_archive")
 
 def clean_dep(dep):
     return str(Label(dep))
