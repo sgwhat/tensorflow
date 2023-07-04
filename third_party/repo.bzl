@@ -51,11 +51,9 @@ def _get_env_var(ctx, name):
 # Checks if we should use the system lib instead of the bundled one
 def _use_system_lib(ctx, name):
     syslibenv = _get_env_var(ctx, "TF_SYSTEM_LIBS")
-    if syslibenv:
-        for n in syslibenv.strip().split(","):
-            if n.strip() == name:
-                return True
-    return False
+    if not syslibenv:
+        return False
+    return name in [n.strip() for n in syslibenv.split(",")]
 
 def _get_link_dict(ctx, link_files, build_file):
     link_dict = {ctx.path(v): ctx.path(Label(k)) for k, v in link_files.items()}
