@@ -46,7 +46,7 @@ cc_library(
         "SQLITE_OMIT_DEPRECATED",
     ],
     linkopts = select({
-        "@org_tensorflow//tensorflow/tsl:windows": [],
+        "@org_tensorflow//tensorflow:windows": [],
         "//conditions:default": [
             "-ldl",
             "-lpthread",
