@@ -2,6 +2,9 @@
 
 load("//third_party:repo.bzl", "third_party_http_archive", "tf_mirror_urls")
 
+def clean_dep(dep):
+    return str(Label(dep))
+
 # NOTE: If you upgrade this, generate the data files by following the
 # instructions in third_party/icu/data/BUILD
 def repo():
@@ -12,5 +15,5 @@ def repo():
         urls = ["https://github.com/unicode-org/icu/archive/release-69-1.zip"],
         build_file = "//third_party/icu:BUILD.bazel",
         system_build_file = "//third_party/icu:BUILD.system",
-        patch_file = ["//third_party/icu:udata.patch"],
+        patch_file = clean_dep("//third_party/icu:udata.patch"),
     )
