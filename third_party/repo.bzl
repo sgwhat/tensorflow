@@ -57,6 +57,52 @@ def _use_system_lib(ctx, name):
                 return True
     return False
 
+def _get_link_dict(ctx, link_files, build_file):
+    link_dict = {ctx.path(v): ctx.path(Label(k)) for k, v in link_files.items()}
+    if build_file:
+        # Use BUILD.bazel because it takes precedence over BUILD.
+        link_dict[ctx.path("BUILD.bazel")] = ctx.path(Label(build_file))
+    return link_dict
+
+def _tf_http_archive_impl(ctx):
+    # Construct all paths early on to prevent rule restart. We want the
+    # attributes to be strings instead of labels because they refer to files
+    # in the TensorFlow repository, not files in repos depending on TensorFlow.
+    # See also https://github.com/bazelbuild/bazel/issues/10515.
+    link_dict = _get_link_dict(ctx, ctx.attr.link_files, ctx.attr.build_file)
+
+    # For some reason, we need to "resolve" labels once before the
+    # download_and_extract otherwise it'll invalidate and re-download the
+    # archive each time.
+    # https://github.com/bazelbuild/bazel/issues/10515
+    patch_files = ctx.attr.patch_file
+    for patch_file in patch_files:
+        if patch_file:
+            ctx.path(Label(patch_file))
+
+    if _use_system_lib(ctx, ctx.attr.name):
+        link_dict.update(_get_link_dict(
+            ctx = ctx,
+            link_files = ctx.attr.system_link_files,
+            build_file = ctx.attr.system_build_file,
+        ))
+    else:
+        ctx.download_and_extract(
+            url = ctx.attr.urls,
+            sha256 = ctx.attr.sha256,
+            type = ctx.attr.type,
+            stripPrefix = ctx.attr.strip_prefix,
+        )
+        if patch_files:
+            for patch_file in patch_files:
+                patch_file = ctx.path(Label(patch_file)) if patch_file else None
+                if patch_file:
+                    ctx.patch(patch_file, strip = 1)
+
+    for dst, src in link_dict.items():
+        ctx.delete(dst)
+        ctx.symlink(src, dst)
+
 # Executes specified command with arguments and calls 'fail' if it exited with
 # non-zero code
 def _execute_and_check_ret_code(repo_ctx, cmd_and_args):
