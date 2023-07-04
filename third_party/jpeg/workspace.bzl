@@ -4,7 +4,7 @@ load("//third_party:repo.bzl", "tf_http_archive_new", "tf_mirror_urls")
 
 def repo():
     tf_http_archive_new(
-        name = "libjpeg_turbo",
+        name = "jpeg",
         urls = tf_mirror_urls("https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/2.1.4.tar.gz"),
         sha256 = "a78b05c0d8427a90eb5b4eb08af25309770c8379592bb0b8a863373128e6143f",
         strip_prefix = "libjpeg-turbo-2.1.4",
