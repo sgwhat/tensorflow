@@ -498,7 +498,8 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
         strip_prefix = "curl-8.1.2",
         system_build_file = clean_dep("//third_party/systemlibs:curl.BUILD"),
         urls = [
-            "https://curl.haxx.se/download/curl-8.1.2.tar.gz"
+            "https://curl.haxx.se/download/curl-8.1.2.tar.gz",
+            "https://storage.googleapis.com/mirror.tensorflow.org/curl.se/download/curl-8.1.2.tar.gz"
         ],
     )
 
